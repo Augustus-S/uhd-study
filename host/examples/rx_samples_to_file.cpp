@@ -515,11 +515,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl;
         std::cout << boost::format("Setting RX LO Offset: %f MHz...") % (lo_offset / 1e6)
                   << std::endl;
-        uhd::tune_request_t tune_request(freq, lo_offset);
+        uhd::tune_request_t tune_request(freq, lo_offset);  // 将目标频率和手动本震频率配置好
         if (vm.count("int-n"))
             tune_request.args = uhd::device_addr_t("mode_n=integer");
         for (size_t chan : channel_list)
-            usrp->set_rx_freq(tune_request, chan);
+            usrp->set_rx_freq(tune_request, chan);                          // 将上述配置的频率进行设置
         std::cout << boost::format("Actual RX Freq: %f MHz...")
                          % (usrp->get_rx_freq(channel_list[0]) / 1e6)
                   << std::endl

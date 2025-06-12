@@ -125,6 +125,7 @@ static tune_result_t tune_xx_subdev_and_dsp(const double xx_sign,
 {
     //------------------------------------------------------------------
     //-- calculate the tunable frequency ranges of the system
+    //-- 计算系统的可调频率范围
     //------------------------------------------------------------------
     freq_range_t tune_range =
         make_overall_tune_range(rf_fe_subtree->access<meta_range_t>("freq/range").get(),
@@ -134,10 +135,12 @@ static tune_result_t tune_xx_subdev_and_dsp(const double xx_sign,
     freq_range_t dsp_range = dsp_subtree->access<meta_range_t>("freq/range").get();
     freq_range_t rf_range  = rf_fe_subtree->access<meta_range_t>("freq/range").get();
 
+    // 安全地限制用户请求的 target_freq，避免设置不支持的频率。
     double clipped_requested_freq = tune_range.clip(tune_request.target_freq);
 
     //------------------------------------------------------------------
     //-- If the RF FE requires an LO offset, build it into the tune request
+    //-- 若射频前端需要本振偏移，应将其包含在调谐请求中。
     //------------------------------------------------------------------
 
     /*! The automatically calculated LO offset is only used if the
@@ -146,6 +149,11 @@ static tune_result_t tune_xx_subdev_and_dsp(const double xx_sign,
      * user should specify the MANUAL tune policy and lo_offset as part of the
      * tune_request. This lo_offset is based on the requirements of the FE, and
      * does not reflect a user-requested lo_offset, which is handled later. */
+    /*
+     * 仅当子板属性树中的 use_lo_offset 字段设置为 TRUE ，且调谐策略（tune policy）为 AUTO 时，才会使用自动计算的本振偏移（LO offset）。
+     * 若需正常使用本振偏移 ，用户应指定 MANUAL 调谐策略 ，并在调谐请求（tune_request）中显式声明 lo_offset。
+     * 此处的 lo_offset 基于前端（FE）需求设定，不反映用户主动请求的本振偏移 （后者会在后续流程中处理）。
+     */
     double lo_offset = 0.0;
     if (rf_fe_subtree->exists("use_lo_offset")
         and rf_fe_subtree->access<bool>("use_lo_offset").get()) {
@@ -157,6 +165,21 @@ static tune_result_t tune_xx_subdev_and_dsp(const double xx_sign,
 
         // If the local oscillator will be in the passband, use an offset.
         // But constrain the LO offset by the width of the filter bandwidth.
+        // 若本地振荡器(LO)将落入通带内，则需设置频率偏移。
+        // 但该偏移量必须受限于滤波器带宽的宽度。
+        /*
+         * LO偏移量和滤波器宽度有什么关系？
+         * 在 USRP 接收链中，频率调谐是由 RF-LO（模拟混频）和 DSP（CORDIC 数字频移）共同完成的：
+         * RF LO 先将目标频率附近的信号转换到中频（IF）
+         * DSP 再将 IF 转换到基带（0 Hz）
+         * 但如果RF LO的频率恰好等于你想采集的中心频率，
+         * 那它的本振杂散（LO leakage）和镜像干扰（image rejection）会落入你要的信号频段内，造成性能下降。
+         * 解决方案是——偏移 LO，靠 DSP 补偿回来，这种偏移值称为 LO offset。
+         * 由于模拟前端滤波器（RF Filter）会限制你能接收到的频率范围，如果你偏移太多，会采不到信号。
+         *         --------*--------[滤波器8M带宽(中心100M)]
+         * ------*------(LO 6M偏移)
+         * 信号处于滤波器之外
+         */
         const double rate = dsp_subtree->access<double>("rate/value").get();
         const double bw   = rf_fe_subtree->access<double>("bandwidth/value").get();
         if (bw > rate)
@@ -186,11 +209,21 @@ static tune_result_t tune_xx_subdev_and_dsp(const double xx_sign,
             // setting the lo_offset (if_freq) with a POLICY_MANUAL, there is no
             // way for the user to automatically get back to default if_freq
             // without deconstruct/reconstruct the rf_fe objects.
+            /*
+             * 如果用户明确指定了射频频率 rf_freq，
+             * 并期望设备设置相应的 LO 偏移量（lo_offset = rf_freq - target_freq），
+             * 如果 RF 前端（rf_fe）支持 lo_offset，就设置这个值。
+             *
+             * target_freq 是 信号目标频率（用户想接收或发射的频率）
+             * rf_freq     是 RF 前端实际要调的频率（本地振荡器调谐频率）
+             * 这两个参数均在 rx_samples_to_file.cpp 中设定完毕
+             */
             if (rf_fe_subtree->exists("lo_offset/value")) {
                 rf_fe_subtree->access<double>("lo_offset/value")
                     .set(tune_request.rf_freq - tune_request.target_freq);
             }
 
+            // 裁剪射频频率使其落入 RF 支持的频率范围。
             target_rf_freq = rf_range.clip(tune_request.rf_freq);
             break;
 
@@ -983,10 +1016,15 @@ public:
         // CORDIC correction is necessary. Since the LO might be sourced from another
         // daughterboard which would normally apply a cordic correction a manual DSP tune
         // policy should be used to ensure identical configurations across daughterboards.
+        /*
+         * 如果任何混频器由外部本振（LO）驱动，子板将假设无需进行 CORDIC 校正。
+         * 由于 LO 可能来自另一个子板（该子板通常会应用 CORDIC 校正），
+         * 此时应使用手动 DSP 调谐策略，以确保各子板的配置一致。
+         */
         if (tune_request.dsp_freq_policy == tune_request.POLICY_AUTO
             and tune_request.rf_freq_policy == tune_request.POLICY_AUTO) {
             for (size_t c = 0; c < get_rx_num_channels(); c++) {
-                const bool external_all_los =
+                const bool external_all_los =                                   // 判断是否有任意一个本振是外部提供的
                     _tree->exists(rx_rf_fe_root(chan) / "los" / ALL_LOS)
                     && get_rx_lo_source(ALL_LOS, c) == "external";
                 if (external_all_los) {
@@ -999,12 +1037,13 @@ public:
             }
         }
 
+        // 调谐函数
         tune_result_t result = tune_xx_subdev_and_dsp(RX_SIGN,
             _tree->subtree(rx_dsp_root(chan)),
             _tree->subtree(rx_rf_fe_root(chan)),
             tune_request);
         // do_tune_freq_results_message(tune_request, result, get_rx_freq(chan), "RX");
-        return result;
+        return result;  // 包含有RF频率、DSP频率和中心频率
     }
 
     double get_rx_freq(size_t chan) override
