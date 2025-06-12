@@ -200,6 +200,7 @@ static tune_result_t tune_xx_subdev_and_dsp(const double xx_sign,
 
     //------------------------------------------------------------------
     //-- Tune the RF frontend
+    //-- RF前端频率调谐
     //------------------------------------------------------------------
     if (tune_request.rf_freq_policy != tune_request_t::POLICY_NONE) {
         rf_fe_subtree->access<double>("freq/value").set(target_rf_freq);
@@ -277,7 +278,7 @@ class multi_usrp_impl : public multi_usrp
 public:
     multi_usrp_impl(device::sptr dev) : _dev(dev)
     {
-        _tree = _dev->get_tree();
+        _tree = _dev->get_tree();   // UHD的属性树，是将参数作为文件，利用挂载文件系统读写，类似 Linux 路径的参数访问系统
     }
 
     device::sptr get_device(void) override
@@ -290,6 +291,42 @@ public:
         return _tree;
     }
 
+/*
+ * 字段说明 - get_usrp_rx_info 返回的键值对：
+ *
+ * "module_serial"
+ *     模块的序列号。优先读取 EEPROM 中的 "module_serial"，否则使用 "serial"，最后默认 "n/a"。
+ *
+ * "mboard_id"
+ *     主板的标识符，从属性树中读取路径 "/mboards/N/name"。
+ *
+ * "mboard_name"
+ *     主板名称，从主板 EEPROM 中获取 "name" 字段，默认 "n/a"。
+ *
+ * "mboard_serial"
+ *     主板序列号，从 EEPROM 的 "serial" 字段读取。
+ *
+ * "rx_subdev_name"
+ *     接收子模块名称，从路径 "/rx_frontends/N/name" 获取。
+ *
+ * "rx_subdev_spec"
+ *     子模块规格字符串，例如 "A:0"，表示子模块的位置。由 subdev_spec_t 类型转换得来。
+ *
+ * "rx_antenna"
+ *     当前接收通道使用的天线名称，从 "/rx_frontends/N/antenna/value" 获取。
+ *
+ * "rx_serial"
+ *     接收子模块（daughterboard）的序列号，从 "/rx_eeprom" 读取（如果存在）。
+ *
+ * "rx_id"
+ *     接收子模块的 ID，通常是硬件的唯一标识符，从 EEPROM 中读取（如果存在）。
+ *
+ * "rx_ref_power_key"
+ *     参考功率校准用的 key 值，从 "/ref_power/key" 获取（如果存在）。
+ *
+ * "rx_ref_power_serial"
+ *     参考功率设备的序列号，从 "/ref_power/serial" 获取（如果存在）。
+ */
     dict<std::string, std::string> get_usrp_rx_info(size_t chan) override
     {
         mboard_chan_pair mcp = rx_chan_to_mcp(chan);
@@ -410,6 +447,7 @@ public:
         return meta_range_t(tick_rate, tick_rate, 0);
     }
 
+    // 构造一段人类可读的字符串，描述当前 USRP 设备的结构，包括主板信息、Rx/Tx 通道及其子模块名称等
     std::string get_pp_string(void) override
     {
         std::string buff = str(boost::format("%s USRP:\n"
@@ -2635,8 +2673,19 @@ private:
         }
     }
 
-    fs_path rx_rf_fe_root(const size_t chan)
+    /*
+     * “前端”指的是与天线直接交互 的硬件部分，主要包括：
+     * Mixer	                混频器
+     * Local Oscillator (LO)	本地振荡器，用于混频
+     * Filter	                滤波器（带通、低通、高通）
+     * LNA	                低噪声放大器（接收用）
+     * PA（有时）	        功率放大器（发送用）
+     * 等...
+     */
+    fs_path rx_rf_fe_root(const size_t chan)    // fe_root is Front-End Root(前端模块的根路径)
     {
+        // 将逻辑接收通道编号映射到主板 + 子通道编号
+        // mboard_chan_pair = 主板 + 子通道编号
         mboard_chan_pair mcp = rx_chan_to_mcp(chan);
         try {
             const subdev_spec_pair_t spec = get_rx_subdev_spec(mcp.mboard).at(mcp.chan);
@@ -2762,7 +2811,7 @@ multi_usrp::sptr multi_usrp::make(const device_addr_t& dev_addr)
     device::sptr dev = device::make(dev_addr, device::USRP);
 
     auto rfnoc_dev = std::dynamic_pointer_cast<rfnoc::detail::rfnoc_device>(dev);
-    if (rfnoc_dev) {
+    if (rfnoc_dev) {    // B210不属于RFNoC设备，RFNoC设备包括：X300、N300、E320等先进型号
         return rfnoc::detail::make_rfnoc_device(rfnoc_dev, dev_addr);
     }
     return std::make_shared<multi_usrp_impl>(dev);

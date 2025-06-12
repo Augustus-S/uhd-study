@@ -29,7 +29,7 @@ struct UHD_API tune_request_t
      * to tune the chain as close as possible to the target frequency.
      * \param target_freq the target frequency in Hz
      */
-    tune_request_t(double target_freq = 0);
+    tune_request_t(double target_freq = 0); // 自动调谐，用户设置中心频率，系统自动将射频（RF）和数字信号处理（DSP）频率调整到尽可能接近目标频率
 
     /*!
      * Make a new tune request for a particular center frequency.
@@ -39,7 +39,15 @@ struct UHD_API tune_request_t
      * \param target_freq the target frequency in Hz
      * \param lo_off the LO offset frequency in Hz
      */
-    tune_request_t(double target_freq, double lo_off);
+    /*!
+     * 创建一个新的调谐请求，针对特定的中心频率。
+     * 对射频（RF）频率使用手动策略，
+     * 对数字信号处理（DSP）频率使用自动策略，
+     * 以将信号链调整到尽可能接近目标频率。
+     * \param target_freq 目标频率，单位为赫兹（Hz）
+     * \param lo_off 本振（LO）偏移频率，单位为赫兹（Hz）
+     */
+    tune_request_t(double target_freq, double lo_off);  // 半自动调谐，
 
     //! Policy options for tunable elements in the RF chain.
     enum policy_t {

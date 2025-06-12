@@ -63,6 +63,7 @@ static size_t hash_device_addr(const device_addr_t& dev_addr)
 typedef std::tuple<device::find_t, device::make_t, device::device_filter_t> dev_fcn_reg_t;
 
 // instantiate the device function registry container
+// 实例化设备函数注册容器:创建一个用于保存并管理设备相关函数注册信息的对象
 UHD_SINGLETON_FCN(std::vector<dev_fcn_reg_t>, get_dev_fcn_regs)
 
 void device::register_device(
@@ -123,18 +124,29 @@ device_addrs_t device::find(const device_addr_t& hint, device_filter_t filter)
  **********************************************************************/
 device::sptr device::make(const device_addr_t& hint, device_filter_t filter, size_t which)
 {
-    std::lock_guard<std::mutex> lock(_device_mutex);
+    std::lock_guard<std::mutex> lock(_device_mutex);    // 离开作用域自动释放锁
+    // 当前作用域下所有的变量、函数均被加锁，其他函数调用需要等待。
 
     typedef std::tuple<device_addr_t, make_t> dev_addr_make_t;
     std::vector<dev_addr_make_t> dev_addr_makers;
 
-    for (const dev_fcn_reg_t& fcn : get_dev_fcn_regs()) {
+    // 发现所有符合条件的设备并收集它们的地址信息和创建函数
+    /*
+     * 设备发现函数：std::get<0>(fcn) - 接受hint参数，返回设备地址列表
+     * 设备创建函数：std::get<1>(fcn) - 实际创建设备的工厂函数
+     * 设备过滤器类型：std::get<2>(fcn) - 标识设备类型的枚举值
+     */
+    for (const dev_fcn_reg_t& fcn : get_dev_fcn_regs()) {   // for条件为遍历所有设备
         try {
-            if (filter == ANY or std::get<2>(fcn) == filter) {
-                for (device_addr_t dev_addr : std::get<0>(fcn)(hint)) {
+            /*
+             * filter == ANY：当调用者不关心设备类型时（filter参数为ANY），处理所有设备
+             * std::get<2>(fcn) == filter：当调用者指定特定设备类型时，只处理匹配类型的设备
+             */
+            if (filter == ANY or std::get<2>(fcn) == filter) {                 // 见上文
+                for (device_addr_t dev_addr : std::get<0>(fcn)(hint)) {        // 见上文
                     // append the discovered address and its factory function
                     dev_addr_makers.push_back(
-                        dev_addr_make_t(dev_addr, std::get<1>(fcn)));
+                        dev_addr_make_t(dev_addr, std::get<1>(fcn)));   // 见上文
                 }
             }
         } catch (const std::exception& e) {
@@ -154,7 +166,7 @@ device::sptr device::make(const device_addr_t& hint, device_filter_t filter, siz
                                + " for ----->\n" + hint.to_pp_string());
     }
 
-    // create a unique hash for the device address
+    // create a unique hash(唯一哈希值) for the device address
     device_addr_t dev_addr;
     make_t maker;
     std::tie(dev_addr, maker) = dev_addr_makers.at(which);
@@ -163,6 +175,8 @@ device::sptr device::make(const device_addr_t& hint, device_filter_t filter, siz
 
     // copy keys that were in hint but not in dev_addr
     // this way, we can pass additional transport arguments
+    // 复制那些存在于 hint 中但不在 dev_addr 的键值对
+    // 这样可以传递额外的传输层参数（transport arguments）
     for (const std::string& key : hint.keys()) {
         if (not dev_addr.has_key(key))
             dev_addr[key] = hint[key];

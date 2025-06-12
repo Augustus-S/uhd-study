@@ -35,6 +35,15 @@
 #include <thread>
 
 using namespace std::chrono_literals;
+/**
+ * 引入时间字面量
+ * s	std::chrono::seconds
+ * ms	std::chrono::milliseconds
+ * us	std::chrono::microseconds
+ * ns	std::chrono::nanoseconds
+ * h	std::chrono::hours
+ * min	std::chrono::minutes
+ */
 
 namespace po = boost::program_options;
 
@@ -169,10 +178,21 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     // Cannot use std::vector as second dimension type because recv will call
     // reinterpret_cast<char*> on each subarray, which is incompatible with
     // std::vector. Instead create new arrays and manage the memory ourselves
-    std::vector<samp_type*> buffs(rx_stream->get_num_channels());
+    // 不能使用 std::vector 作为第二维度的类型，因为 recv 函数会对每个子数组
+    // 调用 reinterpret_cast<char*>，这与 std::vector 不兼容。
+    // 因此我们改为创建新数组并自行管理内存。
+    /*
+     * UHD 的 recv() 函数会把接收到的 IQ 样本写入你提供的原始内存地址，
+     * 因为 recv() 是 C 风格函数，其内部使用 reinterpret_cast<char*>(buffs[i]) 把指针强转为 char*，
+     * 正确的做法是：使用 std::vector<samp_type*> 存放裸指针，例如 samp_type* buffs[]，
+     * 每个 samp_type* 指向 new samp_type[] 动态数组，
+     * 这是为什么要避免使用 std::vector<std::vector<T>> 的原因。
+     */
+    std::vector<samp_type*> buffs(rx_stream->get_num_channels());   // 如果"sc16"，则samp_type = std::complex<short>
     try {
         for (size_t ch = 0; ch < rx_stream->get_num_channels(); ch++) {
-            buffs[ch] = new samp_type[samps_per_buff];
+            // 分配的是裸指针，后面需要手动 delete[]。
+            buffs[ch] = new samp_type[samps_per_buff];      // buffs是接收到的IQ数据，这里为每个通道分配一个长度为 samps_per_buff 的动态数组，用于接收样本。
         }
     } catch (std::bad_alloc& exc) {
         UHD_LOGGER_ERROR("UHD")
@@ -181,6 +201,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
         std::exit(EXIT_FAILURE);
     }
 
+    // 创建空的保存文件
     std::vector<std::ofstream> outfiles(rx_stream->get_num_channels());
     std::string filename;
     for (size_t ch = 0; ch < rx_stream->get_num_channels(); ch++) {
@@ -204,13 +225,13 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     }
 
     // setup streaming
-    uhd::stream_cmd_t stream_cmd((num_requested_samples == 0)
-                                     ? uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS
+    uhd::stream_cmd_t stream_cmd((num_requested_samples == 0)                   // num_requested_samples == 0 → 表示连续流模式（接收直到停止），否则是接收固定数量样本。
+                                     ? uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS      // 无限接收
                                      : uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE);
-    stream_cmd.num_samps  = size_t(num_requested_samples);
-    stream_cmd.stream_now = rx_stream->get_num_channels() == 1;
-    stream_cmd.time_spec  = usrp->get_time_now() + uhd::time_spec_t(0.05);
-    rx_stream->issue_stream_cmd(stream_cmd);
+    stream_cmd.num_samps  = size_t(num_requested_samples);      // 设置要接收的样本数（仅在 NUM_SAMPS_AND_DONE 模式下有效）
+    stream_cmd.stream_now = rx_stream->get_num_channels() == 1; // 如果是单通道接收，立即开始接收
+    stream_cmd.time_spec  = usrp->get_time_now() + uhd::time_spec_t(0.05);  // 给0.05秒等待时间
+    rx_stream->issue_stream_cmd(stream_cmd);    // 向设备发出刚才构造的流命令，正式启动流接收过程
 
     typedef std::map<size_t, size_t> SizeMap;
     SizeMap mapSizes;
@@ -223,13 +244,14 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     // Run this loop until either time expired (if a duration was given), until
     // the requested number of samples were collected (if such a number was
     // given), or until Ctrl-C was pressed.
-    while (not stop_signal_called
-           and (num_requested_samples != num_total_samps or num_requested_samples == 0)
-           and (time_requested == 0.0 or std::chrono::steady_clock::now() <= stop_time)) {
+    while (not stop_signal_called                                                           // 没有被中断（如 Ctrl+C）
+           and (num_requested_samples != num_total_samps or num_requested_samples == 0)     // 还没收完请求样本数或者是无限接收模式
+           and (time_requested == 0.0 or std::chrono::steady_clock::now() <= stop_time)) {  // 或者还在运行时间范围内
         const auto now = std::chrono::steady_clock::now();
 
+        // 启动接收，将接收到的数据保存在buffs；md为元数据
         size_t num_rx_samps =
-            rx_stream->recv(buffs, samps_per_buff, md, 3.0, enable_size_map);
+            rx_stream->recv(buffs, samps_per_buff, md, 3.0, enable_size_map);   // 是否记录样本数分布（用于分析接收稳定性）
 
         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
             std::cout << std::endl
@@ -262,6 +284,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
                 throw std::runtime_error(error);
         }
 
+        // 分析整个接收过程中，每次 recv() 实际返回了多少个样本，是否稳定、是否抖动等
         if (enable_size_map) {
             const std::lock_guard<std::mutex> lock(recv_mutex);
             SizeMap::iterator it = mapSizes.find(num_rx_samps);
@@ -272,6 +295,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
 
         num_total_samps += num_rx_samps;
 
+        // 写入文件代码
         for (size_t ch = 0; ch < rx_stream->get_num_channels(); ch++) {
             if (outfiles[ch].is_open()) {
                 outfiles[ch].write(
@@ -279,6 +303,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
             }
         }
 
+        // 每秒计算一次实时带宽（单位是样本/秒）
         last_update_samps += num_rx_samps;
         const auto time_since_last_update = now - last_update;
         if (time_since_last_update > 1s) {
@@ -305,7 +330,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
         delete[] buffs[i];
     }
 
-
+    // 在程序结束时显示平均带宽统计
     if (stats) {
         const std::lock_guard<std::mutex> lock(recv_mutex);
         std::cout << std::endl;
@@ -324,10 +349,11 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     }
 }
 
-typedef std::function<uhd::sensor_value_t(const std::string&)> get_sensor_fn_t;
+// 检测并等待指定的锁定传感器（如 PLL lock、LO lock 等）在一定时间内锁定成功。
+typedef std::function<uhd::sensor_value_t(const std::string&)> get_sensor_fn_t;     // sensor_value_t 是 UHD（USRP）框架中描述硬件传感器值的类。
 
-bool check_locked_sensor(std::vector<std::string> sensor_names,
-    const char* sensor_name,
+bool check_locked_sensor(std::vector<std::string> sensor_names, // 设备当前支持的所有传感器名
+    const char* sensor_name,                                    // 要检查的特定传感器，比如 "lo_locked"
     get_sensor_fn_t get_sensor_fn,
     double setup_time)
 {
@@ -389,8 +415,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("nsamps", po::value<size_t>(&total_num_samps)->default_value(0), "total number of samples to receive")
         ("duration", po::value<double>(&total_time)->default_value(0), "total number of seconds to receive")
         ("spb", po::value<size_t>(&spb)->default_value(10000), "samples per buffer")
-        ("rate", po::value<double>(&rate)->default_value(1e6), "rate of incoming samples")
-        ("freq", po::value<double>(&freq)->default_value(0.0), "RF center frequency in Hz")
+        ("rate", po::value<double>(&rate)->default_value(10e6), "rate of incoming samples")
+        ("freq", po::value<double>(&freq)->default_value(2407e6), "RF center frequency in Hz")
         ("lo-offset", po::value<double>(&lo_offset)->default_value(0.0),
             "Offset for frontend LO in Hz (optional)")
         ("gain", po::value<double>(&gain), "gain for the RF chain")
@@ -399,7 +425,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("channels,channel", po::value<std::string>(&channels)->default_value("0"), "which channel(s) to use (specify \"0\", \"1\", \"0,1\", etc)")
         ("bw", po::value<double>(&bw), "analog frontend filter bandwidth in Hz")
         ("ref", po::value<std::string>(&ref), "reference source (internal, external, mimo)")
-        ("wirefmt", po::value<std::string>(&wirefmt)->default_value("sc16"), "wire format (sc8, sc16 or s16)")
+        ("wirefmt", po::value<std::string>(&wirefmt)->default_value("sc16"), "wire format (sc8, sc16 or s16)")  // sc is "short complex"
         ("setup", po::value<double>(&setup_time)->default_value(1.0), "seconds of setup time")
         ("progress", "periodically display short-term bandwidth")
         ("stats", "show average bandwidth on exit")
@@ -434,12 +460,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     if (enable_size_map)
         std::cout << "Packet size tracking enabled - will only recv one packet at a time!"
+                  << "已启用数据包大小跟踪 —— 每次只接收一个数据包！"
                   << std::endl;
 
     // create a usrp device
     std::cout << std::endl;
-    std::cout << "Creating the usrp device with: " << args << "..." << std::endl;
-    uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(args);
+    std::cout << "Creating the usrp device with: " << args << "..." << std::endl;   // 传输设备地址，为空字符串是表示：用户未指定设备，使用默认连接的设备
+    uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(args);  // 初始化、加载bin、创建设备等
 
     // Parse channel selection string
     boost::split(channel_strings, channels, boost::is_any_of("\"',"));
@@ -464,6 +491,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
 
     // always select the subdevice first, the channel mapping affects the other settings
+    // 总是先设置 subdevice，因为通道映射会影响后续的其他配置
     if (vm.count("subdev"))
         usrp->set_rx_subdev_spec(subdev);
 
@@ -472,7 +500,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // set the sample rate
     if (rate <= 0.0) {
         std::cerr << "Please specify a valid sample rate" << std::endl;
-        return ~0;
+        return ~0;  // 将0按位取反，int的二进制0是32个0，取反后为0xFFFFFFFF，在有符号整形中表示-1.
     }
     std::cout << boost::format("Setting RX Rate: %f Msps...") % (rate / 1e6) << std::endl;
     usrp->set_rx_rate(rate, uhd::usrp::multi_usrp::ALL_CHANS);
@@ -509,6 +537,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
 
     // set the IF filter bandwidth
+    // 设置(接收端)中频滤波器带宽
+    // 对接收信号具有“带通滤波”的作用，过滤掉非目标频段的干扰。
     if (vm.count("bw")) {
         std::cout << boost::format("Setting RX Bandwidth: %f MHz...") % (bw / 1e6)
                   << std::endl;
