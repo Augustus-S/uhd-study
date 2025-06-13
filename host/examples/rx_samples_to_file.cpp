@@ -101,6 +101,8 @@ double disk_rate_check(const size_t sample_type_size,
     }
     // sig_int_handler will absorb SIGINT by this point, but other signals may
     // leave a temporary file on program exit.
+    // 此时 sig_int_handler 会捕获 SIGINT 信号，
+    // 但其他信号可能导致程序退出时遗留临时文件
     boost::filesystem::remove(temp_file);
 
     std::string line;
@@ -589,8 +591,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
     }
 
+    // 这段代码是一个信号处理设置逻辑，
+    // 专门用于在无限接收数据时允许用户通过 Ctrl + C 中断接收过程。
+    // SIGINT 就是用户按 Ctrl + C 时系统发送给进程的中断信号。
+    // sig_int_handler 是回调函数
     if (total_num_samps == 0) {
-        std::signal(SIGINT, &sig_int_handler);
+        std::signal(SIGINT, &sig_int_handler);  // SIGINT = SIGnal INTerrupt 就是 std::signal C99定义的 Ctrl + C
         std::cout << "Press Ctrl + C to stop streaming..." << std::endl;
     }
 
@@ -612,7 +618,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 #endif
 
     std::vector<size_t> chans_in_thread;
-    std::vector<double> rates(channel_list.size());
+    std::vector<double> rates(channel_list.size()); //
 
 #define recv_to_file_args(format)                                                    \
     (usrp,                                                                           \
@@ -640,6 +646,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         } else {
             chans_in_thread = channel_list;
         }
+        // 将新线程对象添加到一个线程容器中
+        /*
+         * lambda 表达式：
+         * [=, &rates]: = 表示“按值捕获所有外部变量”; &rates 表示按引用捕获 rates.
+         * (): 代表本线程不接收任何变量传入。
+         *
+         * !! recv_to_file_args中第九个参数为 rates， 对应了 recv_to_file 的第九个参数 bw.
+         */
         threads.push_back(std::thread([=, &rates]() {
             // recv to file
             if (wirefmt == "s16") {
@@ -679,9 +693,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     const auto end_time = std::chrono::steady_clock::now() + (total_time - 1) * 1s;
 
-    while (threads.size() > 0
-           && (std::chrono::steady_clock::now() < end_time || total_time == 0)
-           && !stop_signal_called) {
+    while (threads.size() > 0   // 还有线程没运行完
+           && (std::chrono::steady_clock::now() < end_time || total_time == 0)  // 判断是否到了限定时间
+           && !stop_signal_called) {    // 信号停止中断是否被触发
         std::this_thread::sleep_for(1s);
 
         // Remove any threads that are finished
@@ -689,8 +703,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             if (!threads[i].joinable()) {
                 // Thread is not joinable, i.e. it has finished and 'joined' already
                 // Remove the thread from the list.
+                // 当线程不可被 join 时(意思是它已经完成并且被 joined 了)，从列表中将它移除。
                 threads.erase(threads.begin() + i);
                 // Clear last bandwidth value after thread is finished
+                // 在线程结束后清除最后一个带宽的数据。
                 rates[i] = 0;
             }
         }
