@@ -26,9 +26,14 @@ struct async_metadata_t;
 class UHD_API device : uhd::noncopyable
 {
 public:
-    typedef std::shared_ptr<device> sptr;
+    typedef std::shared_ptr<device> sptr;   // 是 make_t 的返回类型
     typedef std::function<device_addrs_t(const device_addr_t&)> find_t;
-    typedef std::function<sptr(const device_addr_t&)> make_t;
+
+    /*
+     * make_t 是一个“接受 const device_addr_t& 参数，
+     * 返回 sptr（即 std::shared_ptr<device>）”的可调用对象类型。
+     */
+    typedef std::function<sptr(const device_addr_t&)> make_t;   // std::function<返回类型(参数列表)> 名字;
 
     //! Device type, used as a filter in make
     enum device_filter_t { ANY, USRP, CLOCK };

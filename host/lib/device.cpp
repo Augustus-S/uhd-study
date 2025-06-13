@@ -31,24 +31,35 @@ static std::mutex _device_mutex;
  * The hash will be used to identify created devices.
  * \param dev_addr the device address
  * \return the hash number
+ * 这段代码的作用是为 device_addr_t 类型的设备地址生成一个哈希值，用于唯一标识设备。
  */
 static size_t hash_device_addr(const device_addr_t& dev_addr)
 {
     // combine the hashes of sorted keys/value pairs
+    // 对设备地址 dev_addr 中的键值对进行哈希组合。
     size_t hash = 0;
 
     // The device addr can contain all sorts of stuff, which sometimes gets in
     // the way of hashing reliably. TODO: Make this a whitelist
-    const std::vector<std::string> hash_key_blacklist = {
+    // 设备地址可能包含各种内容，这些内容有时会影响可靠哈希计算。
+    const std::vector<std::string> hash_key_blacklist = {   // 黑名单
         "claimed", "skip_dram", "skip_ddc", "skip_duc"};
 
+    // 如果存在 "resource" 键，则仅使用该键值进行哈希（优先级最高）。
     if (dev_addr.has_key("resource")) {
+        /*
+         * 标准的 std::hash 只能处理单一类型（如 int、std::string）。
+         * hash_combine()是将多个键值（key）合并为一个整体的哈希值，
+         * 主要用于复合类型（如 自定义 struct）作为哈希表的键时生成良好的哈希。
+         */
         boost::hash_combine(hash, "resource");
         boost::hash_combine(hash, dev_addr["resource"]);
     } else {
-        for (const std::string& key : uhd::sorted(dev_addr.keys())) {
-            if (std::find(hash_key_blacklist.begin(), hash_key_blacklist.end(), key)
+        // 先排序，再遍历
+        for (const std::string& key : uhd::sorted(dev_addr.keys())) {   // 对 dev_addr 的所有键进行排序，保证哈希与键的顺序无关
+            if (std::find(hash_key_blacklist.begin(), hash_key_blacklist.end(), key)    // 在 [begin, end] 范围内查找第一个等于 key 的元素。
                 == hash_key_blacklist.end()) {
+                // 找到了，就不等于end，不进入if；找完了，没找到，才会进入if
                 boost::hash_combine(hash, key);
                 boost::hash_combine(hash, dev_addr[key]);
             }
@@ -105,6 +116,8 @@ device_addrs_t device::find(const device_addr_t& hint, device_filter_t filter)
 
     // find might return duplicate entries if a device received a broadcast multiple
     // times. These entries needs to be removed from the result.
+    // find 操作可能返回重复条目（当设备多次收到广播时）
+    // 需要从结果中移除这些重复项
     std::set<size_t> device_hashes;
     device_addrs.erase(std::remove_if(device_addrs.begin(),
                            device_addrs.end(),
@@ -145,6 +158,7 @@ device::sptr device::make(const device_addr_t& hint, device_filter_t filter, siz
             if (filter == ANY or std::get<2>(fcn) == filter) {                 // 见上文
                 for (device_addr_t dev_addr : std::get<0>(fcn)(hint)) {        // 见上文
                     // append the discovered address and its factory function
+                    // 将发现的设备地址及其对应的工厂函数追加到列表中
                     dev_addr_makers.push_back(
                         dev_addr_make_t(dev_addr, std::get<1>(fcn)));   // 见上文
                 }
@@ -195,6 +209,15 @@ device::sptr device::make(const device_addr_t& hint, device_filter_t filter, siz
     // Add keys from the config files (note: the user-defined keys will
     // always be applied, see also get_usrp_args()
     // Then, create and register a new device.
+    // 从配置文件中添加键值
+    // （注意：用户自定义键值将始终生效，另见 get_usrp_args()）
+    // 随后创建并注册新设备
+    /*
+     * maker的作用是返回内部函数的指针
+     * dev_addr 在未指定时为空，
+     * get_usrp_args的作用是根据输入的 dev_addr(实际是user_args) 查找设备地址
+     */
+    device_addr_t args = prefs::get_usrp_args(dev_addr);    // add by SWH
     device::sptr dev         = maker(prefs::get_usrp_args(dev_addr));
     hash_to_device[dev_hash] = dev;
     return dev;

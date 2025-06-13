@@ -143,7 +143,7 @@ void uhd::prefs::resume_guided_mode()
 device_addr_t uhd::prefs::get_usrp_args(const uhd::device_addr_t& user_args)
 {
     const std::vector<std::string> keys_to_update_from = {"type", "product", "serial"};
-    return get_args(user_args, keys_to_update_from);
+    return get_args(user_args, keys_to_update_from);    // 根据以上三种类型的args查找设备地址
 }
 
 device_addr_t uhd::prefs::get_dpdk_args(const uhd::device_addr_t& user_args)

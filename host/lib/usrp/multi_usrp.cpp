@@ -2847,11 +2847,12 @@ multi_usrp::sptr multi_usrp::make(const device_addr_t& dev_addr)
     UHD_LOGGER_TRACE("MULTI_USRP")
         << "multi_usrp::make with args " << dev_addr.to_pp_string();
 
+    // 构建设备
     device::sptr dev = device::make(dev_addr, device::USRP);
 
     auto rfnoc_dev = std::dynamic_pointer_cast<rfnoc::detail::rfnoc_device>(dev);
     if (rfnoc_dev) {    // B210不属于RFNoC设备，RFNoC设备包括：X300、N300、E320等先进型号
         return rfnoc::detail::make_rfnoc_device(rfnoc_dev, dev_addr);
     }
-    return std::make_shared<multi_usrp_impl>(dev);
+    return std::make_shared<multi_usrp_impl>(dev);  // 返回设备的属性树，make_shared<>的作用与多态有关
 }
