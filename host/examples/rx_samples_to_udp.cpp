@@ -43,8 +43,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("bw", po::value<double>(&bw), "analog frontend filter bandwidth in Hz")
         ("port", po::value<std::string>(&port)->default_value("7124"), "server udp port")
         ("addr", po::value<std::string>(&addr)->default_value("192.168.1.10"), "resolvable server address")
-        ("ref", po::value<std::string>(&ref), "clock reference (internal, external, mimo, gpsdo)")
-        ("int-n", "tune USRP with integer-N tuning")
+        ("ref", po::value<std::string>(&ref), "clock reference (internal, external, mimo, gpsdo)")  // 参考时钟。
+        ("int-n", "tune USRP with integer-N tuning")    // \todo:这是什么意思？
     ;
     // clang-format on
     po::variables_map vm;
@@ -66,10 +66,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // Lock mboard clocks
     if (vm.count("ref")) {
-        usrp->set_clock_source(ref);
+        usrp->set_clock_source(ref);    // \todo:分析 ref 的作用和赋值过程。
     }
 
     // always select the subdevice first, the channel mapping affects the other settings
+    // 始终应先选择子设备，因为通道映射会影响其他设置
+    // subdevice（子设备）：USRP 设备可以有多个子设备（例如多个射频前端），必须明确指定。(什么是射频前端？)
     if (vm.count("subdev")) {
         usrp->set_rx_subdev_spec(subdev);
     }
@@ -119,7 +121,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<std::string> sensor_names;
     sensor_names = usrp->get_rx_sensor_names(0);
     if (std::find(sensor_names.begin(), sensor_names.end(), "lo_locked")
-        != sensor_names.end()) {
+        != sensor_names.end()) {    // 从 sensor 中查找 lo_locked。
         uhd::sensor_value_t lo_locked = usrp->get_rx_sensor("lo_locked", 0);
         std::cout << boost::format("Checking RX: %s ...") % lo_locked.to_pp_string()
                   << std::endl;
@@ -158,10 +160,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     uhd::rx_metadata_t md;
     std::vector<std::complex<float>> buff(rx_stream->get_max_num_samps());
     uhd::transport::udp_simple::sptr udp_xport =
-        uhd::transport::udp_simple::make_connected(addr, port);
+        uhd::transport::udp_simple::make_connected(addr, port); // 配置 UDP 传输
 
     while (num_acc_samps < total_num_samps) {
-        size_t num_rx_samps = rx_stream->recv(&buff.front(), buff.size(), md);
+        size_t num_rx_samps = rx_stream->recv(&buff.front(), buff.size(), md);  // 开始接收
 
         // handle the error codes
         switch (md.error_code) {
@@ -184,6 +186,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
 
         // send complex single precision floating point samples over udp
+        // udp 发送
+        // buff.front() 表示访问 std::vector<std::complex<float>> buff 中的第一个元素.
         udp_xport->send(boost::asio::buffer(buff, num_rx_samps * sizeof(buff.front())));
 
         num_acc_samps += num_rx_samps;

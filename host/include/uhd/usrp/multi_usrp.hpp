@@ -473,6 +473,49 @@ public:
      * \param mboard which motherboard to set the config
      * \throws if \p source is an invalid option
      */
+    /*! 设置 USRP 设备的时钟源
+     *
+     * 这个函数设置频率参考源，通常是一个 10 MHz 的信号。为了使多个 USRP 设备频率对齐，
+     * 需要将它们连接到一个公共参考，并为它们提供相同的时钟源。
+     *
+     * \param source 的常见取值为 'internal'（内部）和 'external'（外部）。
+     * 具体可用选项请参考设备手册。
+     *
+     * 如果该设备不支持 \param source 中的值，将会抛出异常。
+     * 可以调用 get_clock_sources() 获取本方法支持的有效选项列表。
+     *
+     * 副作用：某些设备只支持特定的时钟源和时间源组合。
+     * 更改时钟源可能会导致设备自动更改时间源，反之亦然。
+     * 要确定当前所选的时钟源和时间源，唯一可靠的方法是分别调用
+     * get_clock_source() 和 get_time_source()。
+     *
+     * 注意：当设置的值未发生变化时，该函数不会强制重新初始化底层硬件。
+     * 考虑以下代码片段：
+     * ~~~{.cpp}
+     * auto usrp = uhd::usrp::multi_usrp::make(device_args);
+     * // 根据设备的默认状态，这一步可能会也可能不会重新配置硬件
+     * usrp->set_clock_source("internal");
+     * // 此时，时钟源已经确定为 "internal"
+     * // 接下来的调用可能不会执行任何操作，只是立刻返回
+     * usrp->set_clock_source("internal");
+     * // 此时时钟源依然确定为 "internal"
+     * ~~~
+     *
+     * \b 注意：重新配置时钟源会影响 USRP 的 FPGA 中的时钟逻辑，
+     * 会影响时间同步以及依赖这些时钟的模块的正常运行。
+     * 因此强烈建议在执行任何其他操作之前先配置好时钟源和时间源。
+     * 特别是：设置设备时间应该在调用本函数之后进行；
+     * 同时在重新配置时钟/时间源时，不应有正在进行的数据流传输操作。
+     *
+     * 另请参阅：
+     * - set_time_source()
+     * - set_sync_source()
+     *
+     * \param source 表示时钟源的字符串
+     * \param mboard 要配置的主板编号
+     * \throws 如果 \p source 是无效选项则抛出异常
+     */
+
     virtual void set_clock_source(
         const std::string& source, const size_t mboard = ALL_MBOARDS) = 0;
 
@@ -1217,6 +1260,14 @@ public:
      * \param chan the channel index 0 to N-1
      * \throws if an invalid antenna name is provided
      */
+    /*!
+     * 选择接收前端的天线（RX antenna）。
+     *
+     * \param ant 天线名称。如果提供了无效的名称，将抛出异常。
+     *            可以调用 get_rx_antennas() 来获取有效的天线名称列表。
+     * \param chan 通道索引，从 0 到 N-1。
+     * \throws 如果提供的天线名称无效，则抛出异常。
+     */
     virtual void set_rx_antenna(const std::string& ant, size_t chan = 0) = 0;
 
     /*!
@@ -1279,6 +1330,12 @@ public:
      * Get a list of possible RX frontend sensor names.
      * \param chan the channel index 0 to N-1
      * \return a vector of sensor names
+     */
+    /*!
+     * 获取接收前端（RX frontend）可用的传感器名称列表。
+     *
+     * \param chan 通道索引，从 0 到 N-1。
+     * \return 一个包含传感器名称的字符串向量（vector）。
      */
     virtual std::vector<std::string> get_rx_sensor_names(size_t chan = 0) = 0;
 

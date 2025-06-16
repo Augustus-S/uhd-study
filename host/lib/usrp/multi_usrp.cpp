@@ -701,12 +701,13 @@ public:
 
     void set_clock_source(const std::string& source, const size_t mboard) override
     {
-        if (mboard != ALL_MBOARDS) {
+        if (mboard != ALL_MBOARDS) {    // 判断是否设置的是单个主板
+            // 拼接构造设备树路径
             const auto clock_source_path = mb_root(mboard) / "clock_source/value";
             const auto sync_source_path  = mb_root(mboard) / "sync_source/value";
             if (_tree->exists(clock_source_path)) {
                 _tree->access<std::string>(clock_source_path).set(source);
-            } else if (_tree->exists(sync_source_path)) {
+            } else if (_tree->exists(sync_source_path)) {   // 某些 USRP 设备（如 B210、X310）将 clock_source 和 time_source 统一放在 sync_source 中，用一个结构表示多个同步选项。
                 auto sync_source = _tree->access<device_addr_t>(sync_source_path).get();
                 sync_source["clock_source"] = source;
                 _tree->access<device_addr_t>(sync_source_path).set(sync_source);
@@ -715,7 +716,7 @@ public:
             }
             return;
         }
-        for (size_t m = 0; m < get_num_mboards(); m++) {
+        for (size_t m = 0; m < get_num_mboards(); m++) {    // 如果是对多板设置，则进行递归调用本函数
             this->set_clock_source(source, m);
         }
     }
@@ -929,7 +930,7 @@ public:
                 }
             }
         }
-        return this->get_device()->get_rx_stream(args_);
+        return this->get_device()->get_rx_stream(args_);    // 在这里没有开始接收，而是配置接收；在 recv() 函数中才开始接收。
     }
 
     void set_rx_subdev_spec(const subdev_spec_t& spec, size_t mboard) override
@@ -1762,7 +1763,7 @@ public:
             .get();
     }
 
-    std::vector<std::string> get_rx_sensor_names(size_t chan) override
+    std::vector<std::string> get_rx_sensor_names(size_t chan) override  // 通过通道名称和设备树查找 "sensor_name"。
     {
         std::vector<std::string> sensor_names;
         if (_tree->exists(rx_rf_fe_root(chan) / "sensors")) {
