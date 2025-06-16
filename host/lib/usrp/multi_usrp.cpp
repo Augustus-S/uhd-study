@@ -920,11 +920,11 @@ public:
     rx_streamer::sptr get_rx_stream(const stream_args_t& args) override
     {
         _check_link_rate(args, false);
-        stream_args_t args_ = args;
-        if (!args.args.has_key("spp")) {
+        stream_args_t args_ = args;                 // 复制一份参数(不要直接修改用户传入的参数)
+        if (!args.args.has_key("spp")) {       // 如果用户未手动设置每个 buffer 中的样本数
             for (auto chan : args.channels) {
                 if (_rx_spp.count(chan)) {
-                    args_.args.set("spp", std::to_string(_rx_spp.at(chan)));
+                    args_.args.set("spp", std::to_string(_rx_spp.at(chan)));    // 如果该通道在 _rx_spp 中有设置默认值，就使用它
                     break;
                 }
             }
@@ -2577,17 +2577,19 @@ private:
         return mcp;
     }
 
+    // 将通道编号转换为实际通道？
     mboard_chan_pair tx_chan_to_mcp(size_t chan)
     {
         mboard_chan_pair mcp;
         mcp.chan = chan;
+        // 遍历搜索范围，找到该通道属于哪个子板？
         for (mcp.mboard = 0; mcp.mboard < get_num_mboards(); mcp.mboard++) {
-            size_t sss = get_tx_subdev_spec(mcp.mboard).size();
+            size_t sss = get_tx_subdev_spec(mcp.mboard).size(); // \todo：get_tx_subdev_spec 未学习
             if (mcp.chan < sss)
                 break;
             mcp.chan -= sss;
         }
-        if (mcp.mboard >= get_num_mboards()) {
+        if (mcp.mboard >= get_num_mboards()) {  // 如果全都没找到，超出搜索范围，报错
             throw uhd::index_error(str(
                 boost::format(
                     "multi_usrp: TX channel %u out of range for configured TX frontends")
@@ -2796,29 +2798,32 @@ private:
     //! \param is_tx True for tx
     // Assumption is that all mboards use the same link
     // and that the rate sum is evenly distributed among the mboards
+    //! \param is_tx 为True表示发送模式
+    // 假设所有主板使用相同的链路
+    // 且速率总和均匀分布在所有主板上
     bool _check_link_rate(const stream_args_t& args, bool is_tx)
     {
         bool link_rate_is_ok    = true;
         size_t bytes_per_sample = convert::get_bytes_per_item(
-            args.otw_format.empty() ? "sc16" : args.otw_format);
+            args.otw_format.empty() ? "sc16" : args.otw_format);    // 计算每个样本的字节数,默认为 "sc16"
         double max_link_rate = 0;
         double sum_rate      = 0;
         for (const size_t chan : args.channels) {
-            mboard_chan_pair mcp = is_tx ? tx_chan_to_mcp(chan) : rx_chan_to_mcp(chan);
-            if (_tree->exists(mb_root(mcp.mboard) / "link_max_rate")) {
+            mboard_chan_pair mcp = is_tx ? tx_chan_to_mcp(chan) : rx_chan_to_mcp(chan); // 判断是收还是发
+            if (_tree->exists(mb_root(mcp.mboard) / "link_max_rate")) {             // 存在子板，则拿到 "link_max_rate",
                 max_link_rate = std::max(max_link_rate,
                     _tree->access<double>(mb_root(mcp.mboard) / "link_max_rate").get());
             }
-            sum_rate += is_tx ? get_tx_rate(chan) : get_rx_rate(chan);
+            sum_rate += is_tx ? get_tx_rate(chan) : get_rx_rate(chan);  // 每个板的速率加在一起
         }
-        sum_rate /= get_num_mboards();
+        sum_rate /= get_num_mboards();  // 除以板子的数量
         if (max_link_rate > 0 and (max_link_rate / bytes_per_sample) < sum_rate) {
             UHD_LOGGER_WARNING("MULTI_USRP")
                 << boost::format("The total sum of rates (%f MSps on %u channels) "
                                  "exceeds the maximum capacity of the connection.\n"
                                  "This can cause %s.")
                        % (sum_rate / 1e6) % args.channels.size()
-                       % (is_tx ? "underruns (U)" : "overflows (O)");
+                       % (is_tx ? "underruns (U)" : "overflows (O)");   // 各通道的数据率总和超过了最大传输容量。这可能会导致 UnderRun(不足) or overflows(溢出) 问题。
             link_rate_is_ok = false;
         }
 

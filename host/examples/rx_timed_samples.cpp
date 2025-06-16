@@ -82,9 +82,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     usrp->set_time_now(uhd::time_spec_t(0.0));
 
     // create a receive streamer
+    // stream_args_t 是传输开始之前需要配置的重要的参数，包含了通道、速率等重要设置
     uhd::stream_args_t stream_args("fc32", wire); // complex floats
     stream_args.channels             = channel_nums;
-    uhd::rx_streamer::sptr rx_stream = usrp->get_rx_stream(stream_args);
+    uhd::rx_streamer::sptr rx_stream = usrp->get_rx_stream(stream_args);    // 创建一个 rx_streamer
 
     // setup streaming
     std::cout << std::endl;
@@ -95,12 +96,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     stream_cmd.num_samps  = total_num_samps;
     stream_cmd.stream_now = false;
     stream_cmd.time_spec  = uhd::time_spec_t(seconds_in_future);
-    rx_stream->issue_stream_cmd(stream_cmd);
+    rx_stream->issue_stream_cmd(stream_cmd);    // 按照配置情况启动接收
 
     // meta-data will be filled in by recv()
+    // 元数据将会在 recv() 函数中被填充数据
     uhd::rx_metadata_t md;
 
     // allocate buffer to receive with samples
+    // 分配接收采样值的 buffer
     std::vector<std::complex<float>> buff(rx_stream->get_max_num_samps());
     std::vector<void*> buffs;
     for (size_t ch = 0; ch < rx_stream->get_num_channels(); ch++)
@@ -109,15 +112,18 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // the first call to recv() will block this many seconds before receiving
     double timeout = seconds_in_future + 0.1; // timeout (delay before receive + padding)
 
-    size_t num_acc_samps = 0; // number of accumulated samples
+    size_t num_acc_samps = 0; // number of accumulated samples.(实际接收到的总样值数)
     while (num_acc_samps < total_num_samps) {
         // receive a single packet
+        // 这个函数表示接收一包的数据
         size_t num_rx_samps = rx_stream->recv(buffs, buff.size(), md, timeout, true);
 
         // use a small timeout for subsequent packets
+        // 对后续数据包进行微小的延时
         timeout = 0.1;
 
         // handle the error code
+        // 处理错误代码
         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT)
             break;
         if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {

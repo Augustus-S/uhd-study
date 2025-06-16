@@ -174,6 +174,14 @@ public:
      * \return the current value in the property
      * \throws uhd::assertion_error
      */
+    /*!
+     * 获取该属性的当前值。
+     * 若提供了发布者(publisher)，则从其获取值；
+     * 否则返回内部强制转换后的值。
+     *
+     * \return 返回属性中的当前值
+     * \throws 可能抛出uhd::assertion_error异常
+     */
     virtual const T get(void) const = 0;
 
     /*!

@@ -108,7 +108,7 @@ public:
         return *this;
     }
 
-    const T get(void) const
+    const T get(void) const // \TODO:这段代码如何理解？
     {
         if (empty()) {
             throw uhd::runtime_error("Cannot get() on an uninitialized (empty) property");
