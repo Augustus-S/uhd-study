@@ -23,6 +23,7 @@ class adf4001_regs_t
 {
 public:
     /* Function prototypes */
+    /* 函数封装 */
     uint32_t get_reg(uint8_t addr);
     adf4001_regs_t(void);
 
