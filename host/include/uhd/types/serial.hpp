@@ -175,9 +175,13 @@ public:
 
     /*!
      * Write to a serial port.
+     * 向一个串口写入数据
      * \param buf the data to write
      */
     virtual void write_uart(const std::string& buf) = 0;
+
+    // 新添加一个 "以16进制格式" 发送数据的函数
+    virtual void write_hex(const std::vector<int>& buff) = 0;
 
     /*!
      * Read a line from a serial port.

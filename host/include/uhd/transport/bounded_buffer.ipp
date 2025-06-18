@@ -132,10 +132,16 @@ private:
      * 2) assign the back element to empty
      * 3) pop the back to move the counter
      */
+    /*!
+     * 三步操作获取一个元素：
+     * 1) 将 elem 赋值为队尾元素
+     * 2) 将队尾元素置为空
+     * 3) 弹出队尾以更新计数器
+     */
     UHD_INLINE void pop_back(elem_type& elem)
     {
         elem           = _buffer.back();
-        _buffer.back() = elem_type();
+        _buffer.back() = elem_type();   // 第二步：将最后一个元素重置为空（调用默认构造函数）
         _buffer.pop_back();
     }
 

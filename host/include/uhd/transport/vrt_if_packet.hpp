@@ -24,11 +24,17 @@ static const size_t max_if_hdr_words32 = 7; // hdr+sid+cid+tsi+tsf
  * The size fields are used for input and output depending upon
  * the operation used (ie the pack or unpack function call).
  */
+/*!
+ * 用于定义可以打包进 VRT IF 头部（if header）的字段。
+ * 字段中的大小参数在不同操作中用于输入或输出，
+ * 具体取决于所使用的操作（例如 pack 或 unpack 函数调用）。
+ */
 struct UHD_API if_packet_info_t
 {
     if_packet_info_t(void);
 
     // link layer type - always set for pack and unpack
+    // 链路层类型 —— 在打包（pack）和解包（unpack）时始终设置
     enum link_type_t {
         LINK_TYPE_NONE = 0x0,
         LINK_TYPE_CHDR = 0x1,
@@ -36,6 +42,7 @@ struct UHD_API if_packet_info_t
     } link_type;
 
     // packet type
+    // 包类型
     enum packet_type_t {
         // VRT language:
         PACKET_TYPE_DATA    = 0x0,
@@ -53,10 +60,10 @@ struct UHD_API if_packet_info_t
     } packet_type;
 
     // size fields
-    size_t num_payload_words32; // required in pack, derived in unpack
-    size_t num_payload_bytes; // required in pack, derived in unpack
-    size_t num_header_words32; // derived in pack, derived in unpack
-    size_t num_packet_words32; // derived in pack, required in unpack
+    size_t num_payload_words32; // required in pack, derived in unpack  // 打包时必须提供，解包时自动推导
+    size_t num_payload_bytes; // required in pack, derived in unpack    // 打包时必须提供，解包时自动推导
+    size_t num_header_words32; // derived in pack, derived in unpack    // 打包、解包时均自动推导
+    size_t num_packet_words32; // derived in pack, required in unpack   // 打包时自动推导，解包时必须提供
 
     // header fields
     size_t packet_count;
@@ -156,6 +163,14 @@ UHD_API void if_hdr_unpack_be(
  * \param packet_buff memory to write the packed vrt header
  * \param if_packet_info the if packet info (read/write)
  */
+ /*!
+* 从元数据中打包一个 VRT 头部（使用小端格式）。
+*
+* 参见 \ref vrt_pack_contract。
+*
+* \param packet_buff 指向用于写入已打包 VRT 头部的内存缓冲区
+* \param if_packet_info IF 包信息（读/写）
+*/
 UHD_API void if_hdr_pack_le(uint32_t* packet_buff, if_packet_info_t& if_packet_info);
 
 /*!

@@ -18,6 +18,13 @@ namespace uhd { namespace transport {
  * The pop operation blocks on the bounded_buffer to become non empty.
  * The push operation blocks on the bounded_buffer to become non full.
  */
+/*!
+ * 实现一个模板化的有界缓冲区（bounded buffer）：
+ * 用于在线程之间按照生产者-消费者模型传递元素。
+ * 该有界缓冲区的实现使用条件变量进行等待和超时等待。
+ * pop 操作 在缓冲区非空之前会阻塞；
+ * push 操作 在缓冲区未满之前会阻塞。
+ */
 template <typename elem_type>
 class bounded_buffer
 {
@@ -37,6 +44,12 @@ public:
      * \param elem the element reference pop to
      * \return false when the buffer is full
      */
+    /*!
+     * 立即向有界缓冲区中推入一个新元素。
+     * 当缓冲区已满时不会推入该元素。
+     * \param elem 要推入的元素引用
+     * \return 如果缓冲区已满则返回 false
+     */
     UHD_INLINE bool push_with_haste(const elem_type& elem)
     {
         return _detail.push_with_haste(elem);
@@ -49,6 +62,13 @@ public:
      * \param elem the new element to push
      * \return true if the element fit without popping for space
      */
+    /*!
+     * 向有界缓冲区中推入一个新元素。
+     * 如果在推入之前缓冲区已满，
+     * 则通过弹出最旧的元素来腾出空间。
+     * \param elem 要推入的新元素
+     * \return 如果在无需弹出旧元素的情况下成功推入，则返回 true
+     */
     UHD_INLINE bool push_with_pop_on_full(const elem_type& elem)
     {
         return _detail.push_with_pop_on_full(elem);
@@ -58,6 +78,11 @@ public:
      * Push a new element into the bounded_buffer.
      * Wait until the bounded_buffer becomes non-full.
      * \param elem the new element to push
+     */
+    /*!
+     * 向有界缓冲区中推入一个新元素。
+     * 会阻塞，直到缓冲区变为非满状态。
+     * \param elem 要推入的新元素
      */
     UHD_INLINE void push_with_wait(const elem_type& elem)
     {
@@ -71,6 +96,13 @@ public:
      * \param timeout the timeout in seconds
      * \return false when the operation times out
      */
+    /*!
+     * 将一个新元素推入有界缓冲区。
+     * 会阻塞等待直到缓冲区非满或超时。
+     * \param elem 要推入的新元素
+     * \param timeout 超时时间（单位：秒）
+     * \return 如果操作超时则返回 false
+     */
     UHD_INLINE bool push_with_timed_wait(const elem_type& elem, double timeout)
     {
         return _detail.push_with_timed_wait(elem, timeout);
@@ -82,6 +114,12 @@ public:
      * \param elem the element reference pop to
      * \return false when the buffer is empty
      */
+    /*!
+     * 立即从有界缓冲区中弹出一个元素。
+     * 当缓冲区为空时不会弹出任何元素。
+     * \param elem 用于接收弹出元素的引用
+     * \return 当缓冲区为空时返回 false
+     */
     UHD_INLINE bool pop_with_haste(elem_type& elem)
     {
         return _detail.pop_with_haste(elem);
@@ -90,6 +128,7 @@ public:
     /*!
      * Pop an element from the bounded_buffer.
      * Wait until the bounded_buffer becomes non-empty.
+     * 一直等待，直到 bounded_buffer 非空。
      * \param elem the element reference pop to
      */
     UHD_INLINE void pop_with_wait(elem_type& elem)
@@ -103,6 +142,13 @@ public:
      * \param elem the element reference pop to
      * \param timeout the timeout in seconds
      * \return false when the operation times out
+     */
+    /*!
+     * 从 bounded_buffer 中弹出一个元素。
+     * 阻塞等待直到缓冲区非空或超时。
+     * \param elem 用于接收弹出元素的引用
+     * \param timeout 超时时间（单位：秒）
+     * \return 若操作超时则返回 false
      */
     UHD_INLINE bool pop_with_timed_wait(elem_type& elem, double timeout)
     {

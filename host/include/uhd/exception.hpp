@@ -318,6 +318,11 @@ struct UHD_API routing_error : rfnoc_error
  * If the code evaluates to false, throw an assertion error.
  * \param code the code that resolved to a boolean
  */
+/*!
+ * 断言代码执行结果。
+ * 如果代码求值为 false，则抛出断言错误。
+ * \param code 求值为布尔值的代码表达式
+ */
 #define UHD_ASSERT_THROW(code)                                      \
     {                                                               \
         if (not(code))                                              \

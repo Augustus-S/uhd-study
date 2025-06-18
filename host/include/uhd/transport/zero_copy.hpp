@@ -44,6 +44,10 @@ public:
      * Get a pointer to the underlying buffer.
      * \return a pointer into memory
      */
+    /*!
+     * 获取指向底层缓冲区的指针。
+     * \return 指向内存的指针
+     */
     template <class T>
     UHD_INLINE T cast(void) const
     {
@@ -178,6 +182,11 @@ public:
      * Get a new send buffer from this transport object.
      * \param timeout the timeout to get the buffer in seconds
      * \return a managed buffer, or null sptr on timeout/error
+     */
+    /*!
+     * 从该传输对象中获取一个新的发送缓冲区。
+     * \param timeout 获取缓冲区的超时时间（单位：秒）
+     * \return 返回一个托管缓冲区（managed buffer），如果超时或出错则返回空指针（null sptr）
      */
     virtual managed_send_buffer::sptr get_send_buff(double timeout = 0.1) = 0;
 
