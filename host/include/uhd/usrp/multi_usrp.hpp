@@ -1496,10 +1496,20 @@ public:
      * \param rate the rate in Sps
      * \param chan the channel index 0 to N-1
      */
+    /*!
+     * 设置发射（TX）采样率。
+     *
+     * 此函数会将请求的采样率“强制调整”为设备实际支持的采样率。
+     * 调整过程中可能会记录一个警告日志。可以调用 get_tx_rate() 来获取实际设置的采样率。
+     *
+     * \param rate 采样率，单位为每秒采样数（Sps，Samples per second）
+     * \param chan 通道索引，范围从 0 到 N-1
+     */
     virtual void set_tx_rate(double rate, size_t chan = ALL_CHANS) = 0;
 
     /*!
      * Gets the TX sample rate.
+     * 获取发射采样率
      * \param chan the channel index 0 to N-1
      * \return the rate in Sps
      */
@@ -1521,6 +1531,16 @@ public:
      * \param tune_request tune request instructions
      * \param chan the channel index 0 to N-1
      * \return a tune result object
+     */
+    /*! 设置发射（TX）中心频率。
+     *
+     * 如果请求的频率超出了有效频率范围，
+     * 该频率将被强制调整为最接近的有效频率。
+     * 你可以检查返回值或调用 get_tx_freq() 来获取实际的中心频率。
+     *
+     * \param tune_request 调谐请求参数
+     * \param chan 通道索引，范围从 0 到 N-1
+     * \return 返回一个调谐结果对象
      */
     virtual tune_result_t set_tx_freq(
         const tune_request_t& tune_request, size_t chan = 0) = 0;
@@ -1685,6 +1705,19 @@ public:
      * \param chan The channel for which this feature is queried
      *
      * \returns true if this channel has a TX power API available
+     */
+    /*! 如果该通道启用了参考功率（reference power）API，则返回 true
+     *
+     * 许多设备要么没有内置的参考功率 API，要么需要校准数据才能正常工作。
+     * 这意味着即使知道设备类型，也不确定设备是否支持设置功率参考电平。
+     * 使用此方法可以查询 set_tx_power_reference() 和 get_tx_power_reference() 是否可用。
+     * 如果不可用，这两个函数会抛出 uhd::not_implemented_error 或 uhd::runtime_error 异常。
+     *
+     * 更多信息请参见 \ref page_power，或者查询具体设备的手册，了解功率 API 是否可用及如何启用。
+     *
+     * \param chan 查询的通道索引
+     *
+     * \returns 如果该通道支持 TX 功率 API，则返回 true
      */
     virtual bool has_tx_power_reference(const size_t chan = 0) = 0;
 

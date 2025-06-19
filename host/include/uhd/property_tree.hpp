@@ -22,6 +22,16 @@ namespace uhd {
  * A non-templated class which exists solely so we can
  * dynamic_cast between properties.
  */
+/*!
+ * 一个非模板类，其存在的唯一目的就是为了
+ * 让我们可以在属性之间使用 dynamic_cast 进行类型转换。
+ *
+ * 注解：dynamic_cast 是一种运行时类型转换操作符，通常用于带有虚函数的类层次结构中。
+ * 当在继承层次结构中对不同类型的对象进行安全地向下转型（比如从基类指针转换到派生类指针）时，
+ * 必须有一个多态基类（即包含至少一个虚函数的类）。
+ *
+ * 有很多模板类继承自这个类！
+ */
 class UHD_API property_iface
 {
 public:
@@ -95,6 +105,15 @@ public:
      * \return a reference to this property for chaining
      * \throws uhd::assertion_error if called more than once
      */
+    /*!
+     * 在该属性中注册一个强制器（coercer）。
+     * 强制器是一个回调函数，用于更新该属性的被强制值（coerced value）。
+     *
+     * 每个属性只能注册一个强制器。
+     * \param coercer 强制器的回调函数
+     * \return 返回该属性的引用，以支持链式调用
+     * \throws uhd::assertion_error 如果此函数被多次调用
+     */
     virtual property<T>& set_coercer(const coercer_type& coercer) = 0;
 
     /*!
@@ -150,6 +169,19 @@ public:
      * \param value the new value to set on this property
      * \return a reference to this property for chaining
      * \throws uhd::assertion_error
+     */
+    /*!
+     * 设置该属性的新值，并调用所有相关的订阅者（监听函数）。
+     *
+     * 操作顺序如下：
+     * - 更新该属性的目标值（desired value）
+     * - 调用所有“目标值订阅者”（desired subscribers）
+     * - 如果强制模式（coerce mode）为 AUTO，则调用强制转换函数（coercer）
+     * - 如果强制模式为 AUTO，则调用所有“强制值订阅者”（coerced subscribers）
+     *
+     * \param value 要设置的新值
+     * \return 对该属性的引用，可用于链式调用
+     * \throws uhd::assertion_error 若断言失败
      */
     virtual property<T>& set(const T& value) = 0;
 

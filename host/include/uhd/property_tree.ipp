@@ -87,17 +87,20 @@ public:
 
     property<T>& set(const T& value)
     {
+        // 如果 _value == NULL, 则分配新的内存(init); 如果不为空，则直接将 value 作为初始化值传递给_value
         init_or_set_value(_value, value);
         for (typename property<T>::subscriber_type& dsub : _desired_subscribers) {
-            dsub(get_value_ref(_value)); // let errors propagate
+            dsub(get_value_ref(_value)); // let errors propagate    // 传递错误，不捕获
         }
+        // 尚未理解_coercer。\todo:分析 _coercer 的含义和作用
         if (_coercer) {
             _set_coerced(_coercer(get_value_ref(_value)));
         } else {
             if (_coerce_mode == property_tree::AUTO_COERCE)
                 uhd::assertion_error("coercer missing for an auto coerced property");
         }
-        return *this;
+        return *this;   // *this 就是当前对象的一个引用，但不是拷贝！常用在链式调用上。
+        // 例如:builder.setA(1).setB(2);需要 setA 和 setB 均 return *this;
     }
 
     property<T>& set_coerced(const T& value)
@@ -153,6 +156,7 @@ private:
         }
     }
 
+    // 确保该指针不为 nullptr，否则抛出异常。
     static const T& get_value_ref(const std::unique_ptr<T>& scoped_value)
     {
         if (scoped_value.get() == NULL)

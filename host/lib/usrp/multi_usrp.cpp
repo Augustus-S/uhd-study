@@ -2049,6 +2049,7 @@ public:
 
     tune_result_t set_tx_freq(const tune_request_t& tune_request, size_t chan) override
     {
+        // \todo:研究 set_tx_freq 为何不需要和 set_rx_freq 一样判断调谐方式是 "全自动" 还是 "半自动"?
         tune_result_t result = tune_xx_subdev_and_dsp(TX_SIGN,
             _tree->subtree(tx_dsp_root(chan)),
             _tree->subtree(tx_rf_fe_root(chan)),

@@ -108,6 +108,16 @@ struct UHD_API tune_request_t
      * Fractional N provides greater tuning accuracy at the expense of spurs.
      * Possible options for this key: "integer" or "fractional".
      */
+    /*!
+     * 参数 args 用于传递任意的键/值对。
+     * args 可能使用的键（视具体实现而定）：
+     *
+     * - mode_n：允许用户告诉子板调谐代码
+     *   选择使用整数 N 分频器还是分数 N 分频器。
+     *   默认情况下，支持分数 N 调谐的板子使用分数 N。
+     *   分数 N 在提供更高调谐精度的同时，可能带来杂散信号。
+     *   该键可能的选项值为："integer" 或 "fractional"。
+     */
     device_addr_t args;
 };
 

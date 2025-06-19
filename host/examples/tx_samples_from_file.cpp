@@ -39,6 +39,7 @@ void send_from_file(
     std::ifstream infile(file.c_str(), std::ifstream::binary);
 
     // loop until the entire file has been read
+    // 循环读取整个文件
 
     while (not md.end_of_burst and not stop_signal_called) {
         infile.read((char*)&buff.front(), buff.size() * sizeof(samp_type));
@@ -168,7 +169,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << boost::format("Setting TX LO Offset: %f MHz...") % (lo_offset / 1e6)
               << std::endl;
     uhd::tune_request_t tune_request;
-    tune_request = uhd::tune_request_t(freq, lo_offset);
+    // 这里的 lo_offset 和 rx 部分一样，但是 set_tx_freq() 函数内部逻辑并不完全一样。
+    tune_request = uhd::tune_request_t(freq, lo_offset);    // 应该是格式化的作用
     if (vm.count("int-n"))
         tune_request.args = uhd::device_addr_t("mode_n=integer");
     for (std::size_t channel : channel_nums) {

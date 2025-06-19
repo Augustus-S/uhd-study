@@ -68,6 +68,55 @@
 // mask - a mask indicating which bits in the specified attribute register are
 //          to be changed (default is all bits).
 
+// GPIO 测试和位操作示例。
+
+// 这个示例最初设计用于测试 X300 系列前面板12位宽的 GPIO，
+// 后来改进成可以用于任何 USRP 设备上的任意 GPIO 组，并支持可选的位操作（bit banging）。
+// 代码可能有些杂乱，请见谅。
+//! 目前没有办法自动检测指定 GPIO 组的宽度，如果超过12位，用户需通过 --bits 参数手动指定。
+
+// GPIO 测试：
+// 测试时，GPIO 位的设置如下：
+// GPIO[0] = 空闲时的 ATR 输出 1
+// GPIO[1] = 接收 (RX) 时的 ATR 输出 1
+// GPIO[2] = 发送 (TX) 时的 ATR 输出 1
+// GPIO[3] = 全双工时的 ATR 输出 1
+// GPIO[4] = 输出
+// GPIO[5] 及之后的位 = 输入（其他所有引脚）
+// 测试循环遍历空闲、发送、接收和全双工四种状态，每个状态默认停留2秒，
+// 然后将读回的寄存器值与预期输出进行比对以验证正确性。
+// 每个测试阶段结束时会显示所有 GPIO 寄存器的值。
+// 物理上可以将输出引脚回环到输入引脚，以便手动验证输入信号。
+
+// GPIO 位操作（Bit Banging）:
+// GPIO 组有标准的 DDR（数据方向寄存器）和 OUT（输出值寄存器）。
+// 用户可通过 --bitbang 参数配合 --ddr 和 --out 参数来手动设置相应寄存器的值，
+// 在默认停留时间（2秒）内持续读取 READBACK 寄存器，方便监控输入变化。
+
+// 自动收发控制（ATR）:
+// 除了标准的 DDR 和 OUT 寄存器外，GPIO 组还有 ATR（自动收发）控制寄存器，
+// 允许 GPIO 引脚在 USRP 空闲、发送、接收或全双工操作时自动设置为特定值。
+// 这些寄存器说明如下：
+// CTRL - 控制寄存器（0 = 手动，1 = ATR）
+// ATR_0X - 空闲时设置的值
+// ATR_RX - 接收时设置的输出值
+// ATR_TX - 发送时设置的输出值
+// ATR_XX - 全双工时设置的输出值
+// 下面代码示例中包含设置这些寄存器的方法。
+// 对于多收发器设备，前面板 GPIO 的 ATR 驱动默认为第一个收发器（0或A）的状态。
+// 可以通过写寄存器逐位更改这一设置。
+// ATR 信号源也可控制，比如选择驱动自 Radio0、Radio1 等。
+// SRC - 信号源寄存器（RFA = Radio0，RFB = Radio1，等等）
+
+// UHD API
+// multi_usrp::set_gpio_attr() 是 UHD 提供的用于配置和控制 GPIO 组的接口。
+// 该函数参数说明：
+// bank - GPIO 组名称（例如前面板GPIO通常为 "FP0"，发送子卡GPIO为 "TX<n>"，接收子卡GPIO为 "RX<n>"）
+// attr - 要修改的属性寄存器名称（"SRC", "DDR", "OUT", "CTRL",
+//                                  "ATR_0X", "ATR_RX", "ATR_TX", "ATR_XX"）
+// value - 要设置的值
+// mask - 指示寄存器中哪些位将被更改的掩码（默认为全部位）
+
 #include <uhd/convert.hpp>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
