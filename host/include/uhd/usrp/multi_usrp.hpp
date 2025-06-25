@@ -1272,6 +1272,7 @@ public:
 
     /*!
      * Get the selected RX antenna on the frontend.
+     * 获取接收的前端天线
      * \param chan the channel index 0 to N-1
      * \return the antenna name
      */
@@ -1279,6 +1280,7 @@ public:
 
     /*!
      * Get a list of possible RX antennas on the frontend.
+     * 获取可用于接收的前端天线列表
      * \param chan the channel index 0 to N-1
      * \return a vector of antenna names
      */
@@ -1292,6 +1294,15 @@ public:
      *
      * \param bandwidth the bandwidth in Hz
      * \param chan the channel index 0 to N-1
+     */
+    /*!
+     * 设置前端的接收带宽（RX bandwidth）。
+     *
+     * 如果提供的带宽值超出有效范围，它将被强制调整为最接近的有效值。
+     * 可调用 get_rx_bandwidth_range() 来确定带宽值的有效范围。
+
+     * \param bandwidth 带宽值（单位：Hz）
+     * \param chan 通道索引，从 0 到 N-1
      */
     virtual void set_rx_bandwidth(double bandwidth, size_t chan = 0) = 0;
 
@@ -1351,6 +1362,37 @@ public:
      * \param enb true to enable automatic DC offset correction
      * \param chan the channel index 0 to N-1
      */
+    /*!
+     * 启用或禁用接收端的自动直流偏移（DC Offset）校正。
+     * 自动校正会减去信号的长期平均值。
+
+     * 当禁用时，平均处理操作将被停止。
+     * 一旦停止，当前的平均值将保持不变，
+     * 直到用户重新启用自动校正，
+     * 或通过手动设置偏移值来覆盖该平均值。
+
+     * \param enb 为 true 时启用自动直流偏移校正
+     * \param chan 通道索引，从 0 到 N-1
+     */
+     /*
+      * 直流偏移(DC Offset)简介:
+      * 直流偏移通常指在基带信号中出现的直流分量（零频率成分）。
+      * 理想情况下，接收的基带信号应该围绕零中心波动，不应存在恒定偏移，
+      * 但由于硬件或射频链路中的因素，实际信号往往会叠加一个非零平均值。
+      *
+      * 常见原因:
+      * 本振泄露（LO leakage）、IQ 通道不平衡、射频混频器的 DC 漏泄、ADC 偏置等。
+      * 这些偏移在频域表现为零频附近的尖峰或偏移，会干扰信号分析、降低灵敏度，
+      * 甚至影响调制解调（尤其对窄带或零中频架构敏感）。
+      *
+      * 启用后，UHD 底层会持续计算接收信号的长期平均值，
+      * 并在硬件/软件链路中自动减去这一平均，
+      * 以消除 DC 偏移对后续处理（如解调、FFT 分析等）的影响。
+      *
+      * 禁用后，自动平均计算和修正停止；
+      * 此时若先前已有一个校正值，该值会保持恒定，
+      * 直到用户再次启用自动校正或通过手动接口设置新的偏移值。
+      */
     virtual void set_rx_dc_offset(const bool enb, size_t chan = ALL_CHANS) = 0;
 
     /*!
@@ -1360,18 +1402,28 @@ public:
      * \param offset the dc offset (1.0 is full-scale)
      * \param chan the channel index 0 to N-1
      */
+    /*!
+     * 设置一个固定的接收端直流偏移（DC Offset）值。
+     * 该值为复数类型，用于同时控制 I（同相）和 Q（正交）分量。
+     * 仅在禁用自动校正时使用此函数。
+
+     * \param offset 直流偏移值（1.0 表示满量程）
+     * \param chan 通道索引，从 0 到 N-1
+     */
     virtual void set_rx_dc_offset(
         const std::complex<double>& offset, size_t chan = ALL_CHANS) = 0;
 
     /*!
      * Get the valid range for RX DC offset values.
+     * 获取有效的接收直流偏移量范围
      * \param chan the channel index 0 to N-1
      */
     virtual meta_range_t get_rx_dc_offset_range(size_t chan = 0) = 0;
 
     /*!
      * Enable/disable the automatic IQ imbalance correction.
-     *
+     * 启用或禁用自动 IQ 失衡校正。
+     * 这种补偿通常在 FPGA 或数字前端中实现，是一种实时校正。
      * \param enb true to enable automatic IQ balance correction
      * \param chan the channel index 0 to N-1
      */
@@ -1711,9 +1763,11 @@ public:
      * 许多设备要么没有内置的参考功率 API，要么需要校准数据才能正常工作。
      * 这意味着即使知道设备类型，也不确定设备是否支持设置功率参考电平。
      * 使用此方法可以查询 set_tx_power_reference() 和 get_tx_power_reference() 是否可用。
-     * 如果不可用，这两个函数会抛出 uhd::not_implemented_error 或 uhd::runtime_error 异常。
+     * 如果不可用，这两个函数会抛出 uhd::not_implemented_error 或 uhd::runtime_error
+     * 异常。
      *
-     * 更多信息请参见 \ref page_power，或者查询具体设备的手册，了解功率 API 是否可用及如何启用。
+     * 更多信息请参见 \ref page_power，或者查询具体设备的手册，了解功率 API
+     * 是否可用及如何启用。
      *
      * \param chan 查询的通道索引
      *

@@ -38,6 +38,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("rate", po::value<double>(&rate)->default_value(100e6/16), "rate of incoming samples")
         ("freq", po::value<double>(&freq)->default_value(0), "rf center frequency in Hz")
         ("gain", po::value<double>(&gain)->default_value(0), "gain for the RF chain")
+        /*
+         * ant 参考值
+         * tx-ant  //发射天线，b210设置为 “TX/RX or TX2”
+         * rx-ant  //接收天线，b210设置为 “RX1 or RX2”
+         */
         ("ant", po::value<std::string>(&ant), "antenna selection")
         ("subdev", po::value<std::string>(&subdev), "subdevice specification")
         ("bw", po::value<double>(&bw), "analog frontend filter bandwidth in Hz")
@@ -66,12 +71,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // Lock mboard clocks
     if (vm.count("ref")) {
-        usrp->set_clock_source(ref);    // \todo:分析 ref 的作用和赋值过程。
+        usrp->set_clock_source(ref); // \todo:分析 ref 的作用和赋值过程。
     }
 
     // always select the subdevice first, the channel mapping affects the other settings
     // 始终应先选择子设备，因为通道映射会影响其他设置
-    // subdevice（子设备）：USRP 设备可以有多个子设备（例如多个射频前端），必须明确指定。(什么是射频前端？)
+    // subdevice（子设备）：USRP
+    // 设备可以有多个子设备（例如多个射频前端），必须明确指定。(什么是射频前端？)
     if (vm.count("subdev")) {
         usrp->set_rx_subdev_spec(subdev);
     }
@@ -113,7 +119,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // set the antenna
     if (vm.count("ant"))
-        usrp->set_rx_antenna(ant);
+        usrp->set_rx_antenna(ant); // ant's type is std::string.
 
     std::this_thread::sleep_for(std::chrono::seconds(1)); // allow for some setup time
 
@@ -121,7 +127,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<std::string> sensor_names;
     sensor_names = usrp->get_rx_sensor_names(0);
     if (std::find(sensor_names.begin(), sensor_names.end(), "lo_locked")
-        != sensor_names.end()) {    // 从 sensor 中查找 lo_locked。
+        != sensor_names.end()) { // 从 sensor 中查找 lo_locked。
         uhd::sensor_value_t lo_locked = usrp->get_rx_sensor("lo_locked", 0);
         std::cout << boost::format("Checking RX: %s ...") % lo_locked.to_pp_string()
                   << std::endl;
@@ -163,7 +169,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         uhd::transport::udp_simple::make_connected(addr, port); // 配置 UDP 传输
 
     while (num_acc_samps < total_num_samps) {
-        size_t num_rx_samps = rx_stream->recv(&buff.front(), buff.size(), md);  // 开始接收
+        size_t num_rx_samps = rx_stream->recv(&buff.front(), buff.size(), md); // 开始接收
 
         // handle the error codes
         switch (md.error_code) {
