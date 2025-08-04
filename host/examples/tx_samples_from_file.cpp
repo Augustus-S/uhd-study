@@ -72,9 +72,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     desc.add_options()
         ("help", "help message")
         ("args", po::value<std::string>(&args)->default_value(""), "multi uhd device address args")
-        ("file", po::value<std::string>(&file)->default_value("usrp_samples.dat"), "name of the file to read binary samples from")
+//        ("file", po::value<std::string>(&file)->default_value("usrp_samples.dat"), "name of the file to read binary samples from")
+        ("file", po::value<std::string>(&file)->default_value("Mavic.dat"), "name of the file to read binary samples from")
         ("type", po::value<std::string>(&type)->default_value("short"), "sample type: double, float, or short")
-        ("spb", po::value<size_t>(&spb)->default_value(10000), "samples per buffer")
+        ("spb", po::value<size_t>(&spb)->default_value(6000), "samples per buffer")
         ("rate", po::value<double>(&rate), "rate of outgoing samples")
         ("freq", po::value<double>(&freq), "RF center frequency in Hz")
         ("lo-offset", po::value<double>(&lo_offset)->default_value(0.0),
@@ -182,8 +183,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
 
     // set the rf gain
-    if (vm.count("power")) {
-        for (std::size_t channel : channel_nums) {
+    // 设置射频增益
+    if (vm.count("power")) {    // 如果执行程序设置了 power 参数，则 power 优先级更高
+        for (std::size_t channel : channel_nums) {  // 遍历所有通道
             if (!usrp->has_tx_power_reference(channel)) {
                 std::cout << "ERROR: USRP does not have a reference power API on channel "
                           << channel << "!" << std::endl;
@@ -195,13 +197,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                       << usrp->get_tx_power_reference(channel) << " dBm..." << std::endl;
         }
 
-        if (vm.count("gain")) {
+        if (vm.count("gain")) {    // 如果执行程序设置了 gain 参数，不执行
             std::cout << "WARNING: If you specify both --power and --gain, "
                          " the latter will be ignored."
                       << std::endl;
         }
-    } else if (vm.count("gain")) {
-        for (std::size_t channel : channel_nums) {
+    } else if (vm.count("gain")) {    // 如果执行程序设置了 gain 参数
+        for (std::size_t channel : channel_nums) {  // 遍历所有通道
             std::cout << boost::format("Setting TX Gain: %f dB...") % gain << std::endl;
             usrp->set_tx_gain(gain, channel);
             std::cout << boost::format("Actual TX Gain: %f dB...")
@@ -212,6 +214,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
 
     // set the analog frontend filter bandwidth
+    // 设置模拟前端滤波器带宽
     if (vm.count("bw")) {
         std::cout << boost::format("Setting TX Bandwidth: %f MHz...") % (bw / 1e6)
                   << std::endl;
@@ -235,7 +238,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // Check Ref and LO Lock detect
     std::vector<std::string> sensor_names;
-    for (std::size_t channel : channel_nums) {
+    for (std::size_t channel : channel_nums) {  // 检查每个通道的本振是否锁定
         sensor_names = usrp->get_tx_sensor_names(channel);
         if (std::find(sensor_names.begin(), sensor_names.end(), "lo_locked")
             != sensor_names.end()) {
@@ -246,7 +249,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
     }
     sensor_names = usrp->get_mboard_sensor_names(0);
-    if ((ref == "mimo")
+    if ((ref == "mimo") // 检查 mimo 传感器
         and (std::find(sensor_names.begin(), sensor_names.end(), "mimo_locked")
              != sensor_names.end())) {
         uhd::sensor_value_t mimo_locked = usrp->get_mboard_sensor("mimo_locked", 0);

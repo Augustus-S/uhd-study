@@ -1432,8 +1432,10 @@ public:
     /*!
      * Set the RX frontend IQ imbalance correction.
      * Use this to adjust the magnitude and phase of I and Q.
-     *
+     * 设置接收前端的 IQ 失衡校正参数。
+     * 可用于调整 I（同相）和 Q（正交）信号的幅度与相位。
      * \param correction the complex correction (1.0 is full-scale)
+     * \param correction 复数形式的校正值（1.0 表示满刻度）
      * \param chan the channel index 0 to N-1
      */
     virtual void set_rx_iq_balance(
@@ -1458,6 +1460,23 @@ public:
      * \param chan The channel for which this feature is queried
      *
      * \returns true if this channel has an RX power API available
+     */
+    /**************************************************************************
+     * 功率电平控制
+     **************************************************************************/
+    /*! 如果该通道启用了参考功率 API，则返回 true
+
+     * 许多设备要么没有内建的参考功率 API，要么需要校准数据才能正常工作。
+     * 这意味着，即使设备类型已知，也无法确定设备是否支持设置参考功率电平。
+     * 使用此方法来查询 set_rx_power_reference() 和 get_rx_power_reference()
+     * 是否可用；如果不可用，它们将抛出 uhd::not_implemented_error 或 uhd::runtime_error 异常。
+     *
+     * 有关更多信息，请参见 \ref page_power，或查阅特定设备的手册页面以了解是否支持功率 API 以及如何启用。
+     *
+     * \param chan 要查询该功能的通道编号
+     *
+     * \returns 如果该通道支持 RX 功率 API，则返回 true
+     *
      */
     virtual bool has_rx_power_reference(const size_t chan = 0) = 0;
 
