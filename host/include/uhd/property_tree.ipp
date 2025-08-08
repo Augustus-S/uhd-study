@@ -89,8 +89,9 @@ public:
     {
         // 如果 _value == NULL, 则分配新的内存(init); 如果不为空，则直接将 value 作为初始化值传递给_value
         init_or_set_value(_value, value);
+        // 遍历 _desired_subscribers 容器中的每一个 subscriber_type 元素，并通过 dsub 引用访问它，以便执行后续操作。
         for (typename property<T>::subscriber_type& dsub : _desired_subscribers) {
-            dsub(get_value_ref(_value)); // let errors propagate    // 传递错误，不捕获
+            dsub(get_value_ref(_value)); // let errors propagate    // 传递错误，不捕获 // dsub 只是迭代器
         }
         // 尚未理解_coercer。\todo:分析 _coercer 的含义和作用
         if (_coercer) {

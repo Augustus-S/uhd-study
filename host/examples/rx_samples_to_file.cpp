@@ -114,7 +114,7 @@ double disk_rate_check(const size_t sample_type_size,
     // Parse dd output this format:
     //   1+0 records in
     //   1+0 records out
-    //   80000000 bytes (80 MB, 76 MiB) copied, 0.245538 s, 326 MB/s
+    //   80,000,000 bytes (80 MB, 76 MiB) copied, 0.245538 s, 326 MB/s
     // and capture the measured disk write speed (e.g. 326 MB/s)
     std::smatch dd_matchs;
     std::regex dd_regex(
@@ -443,6 +443,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     ;
     // clang-format on
     po::variables_map vm;
+    /*
+     * parse_command_line：解析命令行参数
+     * argc：参数个数
+     * argv：具体参数
+     * desc：选项描述
+     * vm：变量映射
+     * store()：把上面解析出来的参数存入变量映射 vm 中。
+     */
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
 
@@ -474,6 +482,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(args);  // 初始化、加载bin、创建设备等
 
     // Parse channel selection string
+    // 解析信道选择字段
     boost::split(channel_strings, channels, boost::is_any_of("\"',"));
     for (const auto& ch : channel_strings) {
         try {

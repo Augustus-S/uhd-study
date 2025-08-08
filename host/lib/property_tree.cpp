@@ -184,10 +184,11 @@ public:
         node->prop = prop;
     }
 
-    std::shared_ptr<property_iface>& _access(const fs_path& path_) const override
+    // 获取属性树中实际参数的函数。\todo:研究该函数从何处获取值，是否从 FPGA 读取？
+    std::shared_ptr<property_iface>& _access(const fs_path& path_) const override   // 覆盖基类中的某个常量成员虚函数。
     {
-        const fs_path path = _root / path_;
-        std::lock_guard<std::mutex> lock(_guts->mutex);
+        const fs_path path = _root / path_;                // 将输入的路径拼接到 _root 后面，形成一个完整路径。
+        std::lock_guard<std::mutex> lock(_guts->mutex); // 保护下面对 _guts 数据结构的并发访问
 
         node_type* node = &_guts->root;
         for (const std::string& name : path_tokenizer(path)) {
@@ -209,6 +210,7 @@ private:
     }
 
     // basic structural node element
+    // 基本的结构节点元素
     struct node_type : uhd::dict<std::string, node_type>
     {
         std::shared_ptr<property_iface> prop;

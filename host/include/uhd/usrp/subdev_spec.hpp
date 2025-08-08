@@ -56,6 +56,20 @@ UHD_API bool operator==(const subdev_spec_pair_t&, const subdev_spec_pair_t&);
  * The first pair represents the subdevice for channel zero,
  * the second pair represents the subdevice for channel one, and so on.
  */
+/*!
+ * （子板插槽名称，子设备名称）对的列表：
+ *
+ * 子设备规格（subdevice specification）表示主板上的一组子设备。
+ * 所指定的子设备可能分布在多个子板上；
+ * 因此，相较于简单的字符串列表，需要使用子设备规格来描述。
+ * 通常，用户会向 API 传入接收（RX）或发射（TX）的子设备规格，
+ * 实现代码则会根据该规格推断通道配置。
+ *
+ * 子设备规格可以表示为一种标记字符串（markup-string）。
+ * 该标记字符串是由空格分隔的 dboard:subdev 对列表。
+ * 第一个对表示通道 0 所使用的子设备，
+ * 第二个对表示通道 1 所使用的子设备，依此类推。
+ */
 class UHD_API subdev_spec_t : public std::vector<subdev_spec_pair_t>
 {
 public:

@@ -85,11 +85,46 @@ public:
  * - T must have a copy constructor
  * - T must have an assignment operator
  */
+/*!
+ * 一个模板化的属性接口，用于在 uhd::property_tree 中保存与某个属性相关的状态，
+ * 并在属性值发生变化时注册回调函数。
+ *
+ * 一个属性定义为具有两个独立的值：
+ * - 期望值（Desired value）：用户请求设置的值
+ * - 实际值（Coerced value）：根据硬件和其他约束条件，实际可用的值
+ *
+ * 默认情况下，只要属性没有被强制修改（coerce），期望值和实际值是相同的。
+ * 属性可以通过两种方式被强制修改（coerced）：
+ * 1. 使用强制器（coercer）：一个接收期望值并返回实际值的回调函数。
+ *    一个属性必须有且仅有一个强制器。
+ * 2. 手动强制（manual coercion）：手动调用 set_coerced 接口函数来设置实际值。
+ *    若要使用手动强制，属性必须以 MANUAL_COERCE 模式创建。
+ *
+ * 如果属性的强制模式（coerce mode）是 AUTO_COERCE，则它总是具有一个强制器。
+ * 如果从未调用过 set_coercer 接口，则默认的强制器将被使用，
+ * 它的行为是简单地将实际值设置为期望值。
+ *
+ * 可以使用订阅者回调函数，在属性的期望值或实际值可能变化时收到通知。
+ * 每个属性可以有 0 个或多个期望值订阅者和实际值订阅者。
+ *
+ * 如果不适合在软件中缓存属性的读回状态（例如该值需要从硬件中获取），
+ * 则可以使用发布器（publisher）回调来获取属性的值。
+ * 调用 get 方法将总是调用发布器；
+ * 缓存的期望值和实际值仅通过 set* 函数进行更新。
+ * 一个属性最多只能有一个发布器。
+ * 属性同时拥有强制器和发布器是合法的，
+ * 但此时访问期望值和实际值的唯一方式是通过订阅者通知。
+ * 发布器非常适合用于创建只读属性。
+ *
+ * 模板类型 T 的要求如下：
+ * - T 必须具有拷贝构造函数
+ * - T 必须具有赋值操作符
+ */
 template <typename T>
 class UHD_API_HEADER property : uhd::noncopyable, public property_iface
 {
 public:
-    typedef std::function<void(const T&)> subscriber_type;
+    typedef std::function<void(const T&)> subscriber_type;  // 定义回调
     typedef std::function<T(void)> publisher_type;
     typedef std::function<T(const T&)> coercer_type;
 

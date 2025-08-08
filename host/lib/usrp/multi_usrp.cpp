@@ -918,12 +918,11 @@ public:
     /*******************************************************************
      * RX methods
      ******************************************************************/
-    rx_streamer::sptr get_rx_stream(const stream_args_t& args) override
-    {
-        _check_link_rate(args, false);
-        stream_args_t args_ = args;                 // 复制一份参数(不要直接修改用户传入的参数)
-        if (!args.args.has_key("spp")) {       // 如果用户未手动设置每个 buffer 中的样本数
-            for (auto chan : args.channels) {
+    rx_streamer::sptr get_rx_stream(const stream_args_t &args) override {
+        _check_link_rate(args, false);      // 检查连接速率
+        stream_args_t args_ = args;              // 复制一份参数(不要直接修改用户传入的参数)
+        if (!args.args.has_key("spp")) {    // 如果用户未手动设置每个 buffer 中的样本数
+            for (auto chan: args.channels) {
                 if (_rx_spp.count(chan)) {
                     args_.args.set("spp", std::to_string(_rx_spp.at(chan)));    // 如果该通道在 _rx_spp 中有设置默认值，就使用它
                     break;
@@ -2844,6 +2843,7 @@ multi_usrp::~multi_usrp(void)
  **********************************************************************/
 namespace uhd { namespace rfnoc { namespace detail {
 // Forward declare
+// 前向声明
 multi_usrp::sptr make_rfnoc_device(
     detail::rfnoc_device::sptr rfnoc_device, const uhd::device_addr_t& dev_addr);
 }}} // namespace uhd::rfnoc::detail

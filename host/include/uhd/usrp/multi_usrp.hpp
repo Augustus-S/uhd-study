@@ -74,24 +74,52 @@ namespace uhd { namespace usrp {
  * <pre>
  *
  * //create a multi_usrp with two boards in the configuration
+ * //在设置里创建一个双板的 multi_usrp 类。
  * device_addr_t dev_addr;
  * dev_addr["addr0"] = "192.168.10.2"
  * dev_addr["addr1"] = "192.168.10.3";
  * multi_usrp::sptr dev = multi_usrp::make(dev_addr);
  *
  * //set the board on 10.2 to use the A RX frontend (RX channel 0)
+ * //将 10.2 地址的板卡设置为使用 A 接收前端（RX 通道 0）
  * dev->set_rx_subdev_spec("A:A", 0);
  *
  * //set the board on 10.3 to use the B RX frontend (RX channel 1)
+ * //将 10.3 地址的板卡设置为使用 B 接收前端（RX 通道 1）
  * dev->set_rx_subdev_spec("A:B", 1);
  *
  * //set both boards to use the AB TX frontend (TX channels 0 and 1)
+ * //设置两块板卡都使用 AB 发送前端（TX 通道 0 和 1）
  * dev->set_tx_subdev_spec("A:AB", multi_usrp::ALL_MBOARDS);
  *
  * //now that all the channels are mapped, continue with configuration...
+ * //所有通道映射完成后，继续进行配置...
  *
  * </pre>
  */
+ /*
+  * Multi-USRP Class 说明：
+  *
+  * 此类旨在简化大多数使用场景下的操作。
+  * 这个封装类提供了便捷的函数来调谐设备、设置子板的增益、天线、滤波器以及其他属性。
+  * 它既可以用于一个带有一个或多个通道的 USRP，也可以用于多个构成同类系统的 USRP。
+  * 在单设备、单通道的情况下，这些参数可以不指定。
+  *
+  * 当在单设备上使用多通道时：
+  *  - 通道映射由前端规范决定
+  *  - 所有通道共享相同的接收（RX）采样率
+  *  - 所有通道共享相同的发送（TX）采样率
+  *
+  * 当使用多个设备组成一个系统时：
+  *  - 通道映射由设备地址参数决定
+  *  - 所有板卡共享相同的接收（RX）采样率
+  *  - 所有板卡共享相同的发送（TX）采样率
+  *  - 所有板卡共享相同的接收前端规范大小
+  *  - 所有板卡共享相同的发送前端规范大小
+  *  - 所有板卡的时间必须同步（见 set_time_*() 系列函数）
+  *
+  * 为多个设备设置通道映射的示例代码详见上文。
+  * */
 class UHD_API multi_usrp : uhd::noncopyable
 {
 public:
@@ -118,6 +146,13 @@ public:
      * \throws uhd::key_error no device found
      * \throws uhd::index_error fewer devices found than expected
      */
+     /*!
+      * 根据设备地址创建一个新的 multi_usrp 实例。
+      * \param dev_addr 设备地址
+      * \return 一个新的单 usrp 对象
+      * \throws uhd::key_error 未找到设备
+      * \throws uhd::index_error 找到的设备数量少于预期
+      */
     static sptr make(const device_addr_t& dev_addr);
 
     /*! Get the underlying device object
@@ -134,16 +169,31 @@ public:
      *
      * \return the device object within this USRP
      */
+     /*! 获取底层的设备对象
+      *
+      * 注意：不推荐使用本方法。
+      * 你可以通过调用本对象的 get_tree() 来访问属性树，
+      * 而且所有与数据流相关的功能都由 streamer（流控制器）管理。
+      *
+      * 对于 RFNoC 设备 ，此方法不会返回一个真正的 uhd::device 对象，
+      * 因为这类设备的直接访问功能已被锁定。
+      * 虽然返回的指针仍然指向一个有效的设备对象，但它的功能是受限的。
+      *
+      * \return 这个 USRP device 中的底层设备对象*/
     virtual device::sptr get_device(void) = 0;
 
     /*! Return a reference to the property tree
      */
+    /*! 返回属性树的引用
+    */
     virtual uhd::property_tree::sptr get_tree(void) const = 0;
 
     //! Convenience method to get a RX streamer. See also uhd::device::get_rx_stream().
+    //! 获取接收流（RX streamer）的便捷方法。另请参见：uhd::device::get_rx_stream()。
     virtual rx_streamer::sptr get_rx_stream(const stream_args_t& args) = 0;
 
     //! Convenience method to get a TX streamer. See also uhd::device::get_tx_stream().
+    //! 获取发送流（TX streamer）的便捷方法。另请参见：uhd::device::get_tx_stream()。
     virtual tx_streamer::sptr get_tx_stream(const stream_args_t& args) = 0;
 
     /*!
@@ -153,6 +203,13 @@ public:
      * \param chan channel index 0 to N-1
      * \return RX info
      */
+     /*!
+      * 返回该 USRP 设备的配置识别信息。
+      * 返回母板的 ID，名称和序列号。
+      * 返回子板的接收端ID，子设备名称与规范，序列号和天线信息。
+      * \param chan 通道索引范围 0 到 N-1
+      * \return 接收通道的信息
+      */
     virtual dict<std::string, std::string> get_usrp_rx_info(size_t chan = 0) = 0;
 
     /*!
@@ -161,6 +218,13 @@ public:
      * Returns daughterboard TX ID, subdev name and spec, serial, and antenna.
      * \param chan channel index 0 to N-1
      * \return TX info
+     */
+    /*!
+     * 返回该 USRP 设备的配置识别信息。
+     * 返回母板的 ID，名称和序列号。
+     * 返回子板的发送端ID，子设备名称与规范，序列号和天线信息。
+     * \param chan 通道索引范围 0 到 N-1
+     * \return 发送通道的信息
      */
     virtual dict<std::string, std::string> get_usrp_tx_info(size_t chan = 0) = 0;
 
@@ -190,6 +254,24 @@ public:
      * \param rate the new master clock rate in Hz
      * \param mboard the motherboard index 0 to M-1
      */
+     /*!
+      * 设置主时钟的运行速率
+      *
+      * 实际改变取决于设备类型，但是它一定会影响 ADC/DAC 的运行速率。
+      *
+      * 类似于设置接收或发送频率，此函数会尽最大努力将主时钟频率设置为指定值。
+      * 设备可能会调整（coerce）到最接近的可用频率，
+      * 而在某些设备上可能实际上不会有任何改变。
+      * 使用函数 get_master_clock_rate() 来查看实际应用的主时钟频率。
+      *
+      * 请注意：在数据流传输过程中更改该值是不推荐的，可能会导致随机的副作用。
+      *
+      * 如果设备支持“自动时钟频率”设置（例如 B200，参考 \ref b200_auto_mcr），
+      * 调用本函数将会禁用自动选择功能，并将主时钟频率固定为指定的 \p rate。
+      *
+      * \param rate 新的主时钟频率，单位为 Hz
+      * \param mboard 母板索引（范围 0 到 M-1）
+      */
     virtual void set_master_clock_rate(double rate, size_t mboard = ALL_MBOARDS) = 0;
 
     /*!
@@ -217,16 +299,32 @@ public:
      * - The N200 series does not have a configurable clock rate, and will
      *   always return the same single value as a range
      */
+    /*!
+     * 返回本次会话中主时钟频率可设置的范围
+     *
+     * 注意，许多 USRP 设备在运行期间实际上不支持设置主时钟频率。
+     * 在这种情况下，返回的范围将只包含一个值，即当前的主时钟频率。
+     * 这个范围中的值可以作为 set_master_clock_rate() 的有效/合理输入，
+     * 不过请记住，set_master_clock_rate() 会对输入进行就近调整。
+     *
+     * 示例：
+     * - B200 系列的主时钟频率可以在运行时更改，并且会报告其支持的真实范围；
+     * - X300 系列有一个有效的主时钟频率范围，但由于运行时无法更改，
+     *   所以总是返回初始化时设定的那个频率；
+     * - N200 系列的主时钟频率不可配置，始终返回相同的单一值作为范围。
+     */
     virtual meta_range_t get_master_clock_rate_range(const size_t mboard = 0) = 0;
 
     /*!
      * Get a printable summary for this USRP configuration.
+     * 获取当前 USRP 配置的可打印摘要
      * \return a printable string
      */
     virtual std::string get_pp_string(void) = 0;
 
     /*!
      * Get canonical name for this USRP motherboard.
+     * 获取该 USRP 主板的规范名称（canonical name）。
      * \param mboard which motherboard to query
      * \return a string representing the name
      */
@@ -242,6 +340,15 @@ public:
      * \param mboard which motherboard to query
      * \return a timespec representing current usrp time
      */
+    /*!
+     * 获取 USRP 时间寄存器中的当前时间。
+     *
+     * 对于具有多个时间管理器（timekeepers）的 RFNoC 设备，此函数返回第一个时间管理器的时间。
+     * 若需访问特定的时间管理器，请使用对应的 RFNoC API（例如 mb_controller::get_timekeeper()）。
+     *
+     * \param mboard 要查询的主板索引
+     * \return 表示当前 USRP 时间的 timespec 结构体
+     */
     virtual time_spec_t get_time_now(size_t mboard = 0) = 0;
 
     /*!
@@ -254,6 +361,15 @@ public:
      * \param mboard which motherboard to query
      * \return a timespec representing the last pps
      */
+    /*!
+     * 获取上一次 PPS（每秒脉冲）发生的时间。
+     *
+     * 对于具有多个时间管理器的 RFNoC 设备，此函数返回第一个时间管理器的 PPS 时间。
+     * 若需访问特定的时间管理器，请使用对应的 RFNoC API（例如 mb_controller::get_timekeeper()）。
+     *
+     * \param mboard 要查询的主板索引
+     * \return 表示上一次 PPS 时间的 timespec 结构体
+     */
     virtual time_spec_t get_time_last_pps(size_t mboard = 0) = 0;
 
     /*! Sets the time registers on the USRP immediately.
@@ -264,6 +380,14 @@ public:
      *
      * \param time_spec the time to latch into the usrp device
      * \param mboard the motherboard index 0 to M-1
+     */
+    /*! 立即设置 USRP 上的时间寄存器。
+     *
+     * 该函数会尽可能快地设置所有设备时间管理器（timekeeper）的计时器（tick count）。
+     * 若存在多个时间管理器，它们会依次（串行）设置，因此多个时间管理器之间的时间**不会同步**。
+     *
+     * \param time_spec 要写入 USRP 设备的时间
+     * \param mboard 要设置的主板索引（范围为 0 到 M-1）
      */
     virtual void set_time_now(
         const time_spec_t& time_spec, size_t mboard = ALL_MBOARDS) = 0;
@@ -296,6 +420,26 @@ public:
      * \param time_spec the time to latch into the usrp device
      * \param mboard the motherboard index 0 to M-1
      */
+    /*! 在下一次 PPS 上升沿设置 USRP 的时间寄存器。
+     *
+     * 该函数将在 PPS 触发信号的下一次上升沿设置所有设备的时间管理器（timekeeper）的计时器。
+     * 请注意，这意味着时间可能在调用此函数 最多延迟1秒 后才会被设置，
+     * 因此建议在调用该函数后等待1秒再进行任何依赖时间的操作，以确保时间寄存器已处于已知状态。
+     *
+     * \b 注意：由于该调用是在下一次 PPS 上升沿设置时间，因此传入的时间参数应对应于下一次脉冲
+     * （即当前时间 + 1 秒）。
+     *
+     * \b 注意：请勿在距离下一次 PPS 上升沿很近的时间调用此函数。应提前足够时间调用，
+     * 以确保所有设备上的时间管理器都能在同一个 PPS 上沿执行此命令。
+     * 否则，不同设备上的时间可能会相差恰好 1 秒。
+     * 如果不确定，建议使用 `set_time_unknown_pps()`，它会自动处理该问题（但会花费更长时间）。
+     *
+     * \b 注意：在更改时钟源（clock source）时，先前设置的时间很可能会丢失。
+     * 因此建议在更换时钟源后再设置时间，否则未来 PPS 边沿可能会与意外的时间对齐。
+     *
+     * \param time_spec 要写入 USRP 设备的时间
+     * \param mboard 要设置的主板索引（范围 0 到 M-1）
+     */
     virtual void set_time_next_pps(
         const time_spec_t& time_spec, size_t mboard = ALL_MBOARDS) = 0;
 
@@ -319,6 +463,23 @@ public:
      *
      * \param time_spec the time to latch at the next pps after catching the edge
      */
+    /*! 同步当前配置中所有主板的时间。
+     *
+     * 当无法确定 PPS（每秒脉冲）上升沿的时间时，使用此方法来同步时间。
+     *
+     * 例如：主机没有连接到 GPSDO 的串口，因此无法从 GPSDO 获取 PPS 上升沿的信息。
+     *
+     * 此函数是一个两步操作，最多需要 2秒 完成。
+     * 操作完成后，所有主板的时间将被同步为提供的时间。
+     *
+     * - 第一步：等待最后一次 PPS 时间发生变化，以捕捉到 PPS 上升沿
+     * - 第二步：在下一次 PPS 上升沿设置时间（所有主板同步执行）
+     *
+     * \b 注意：当更改时钟源（clock source）时，先前设置的时间很可能会丢失。
+     * 建议在更改时钟源之后再设置时间，否则未来的 PPS 边沿可能会与意外的时间对齐。
+     *
+     * \param time_spec 要在下一次 PPS 上升沿时设置的时间
+     */
     virtual void set_time_unknown_pps(const time_spec_t& time_spec) = 0;
 
     /*!
@@ -326,6 +487,12 @@ public:
      * Checks that all time registers are approximately close but not exact,
      * given that the RTT may varying for a control packet transaction.
      * \return true when all motherboards time registers are in sync
+     */
+    /*!
+     * 当前配置中的所有主板时间是否已同步？
+     * 该函数检查所有主板的时间寄存器是否大致接近（但不要求完全相同），
+     * 因为控制数据包的往返时间（RTT）可能会有所不同。
+     * \return 如果所有主板的时间寄存器处于同步状态，则返回 true
      */
     virtual bool get_time_synchronized(void) = 0;
 
@@ -339,11 +506,22 @@ public:
      * \param time_spec the time at which the next command will activate
      * \param mboard which motherboard to set the config
      */
-    virtual void set_command_time(
+    /*!
+     * 设置控制命令生效的时间。
+     *
+     * 一个定时命令会对所有后续的定时命令产生“背压”作用，
+     * 前提是这些后续命令发生在同一个时间窗口内。
+     * 如果设定的时间已过（即延迟），命令将在到达设备时立即生效。
+     *
+     * \param time_spec 下一个命令生效的时间
+     * \param mboard 要设置该配置的主板编号
+     */
+    virtual void set_command_time(  // todo:分析这个函数的作用以及为什么要延时发送命令
         const uhd::time_spec_t& time_spec, size_t mboard = ALL_MBOARDS) = 0;
 
     /*!
      * Clear the command time so future commands are sent ASAP.
+     * 清除之前设置的时间，使得后续的命令立即生效。
      *
      * \param mboard which motherboard to set the config
      */
@@ -361,6 +539,16 @@ public:
      * \param stream_cmd the stream command to issue
      * \param chan the channel index 0 to N-1
      */
+     /*!
+      * 向 USRP 设备下达 stream command
+      * 这会使 USRP 开始向主机发送采样点。
+      * 想要获取更多信息，请查看 stream_cmd_t
+      *
+      * 在多设备的情况下，
+      * 命令链中的第一个流命令应该有一小段等待时间，
+      * 并且把 stream_now 设置为 false
+      * 以便确保每个数据包的时间戳可以对齐
+      */
     virtual void issue_stream_cmd(
         const stream_cmd_t& stream_cmd, size_t chan = ALL_CHANS) = 0;
 
@@ -515,12 +703,12 @@ public:
      * \param mboard 要配置的主板编号
      * \throws 如果 \p source 是无效选项则抛出异常
      */
-
     virtual void set_clock_source(
         const std::string& source, const size_t mboard = ALL_MBOARDS) = 0;
 
     /*!
      * Get the currently set clock source.
+     * 获取当前设置的时钟源。
      * \param mboard which motherboard to get the config
      * \return the string representing the clock source
      */
@@ -542,6 +730,16 @@ public:
      * \param time_source A string representing the time source
      * \param mboard which motherboard to set the config
      * \throws uhd::value_error if the sources don't actually exist
+     */
+    /*! 设置 USRP 设备的参考/同步源。
+     *
+     * 这是对以下调用方式的简写：
+     * `set_sync_source(device_addr_t("clock_source=$CLOCK_SOURCE,time_source=$TIME_SOURCE"))`
+     *
+     * \param clock_source 表示时钟源的字符串
+     * \param time_source 表示时间源的字符串
+     * \param mboard 要配置的主板编号
+     * \throws uhd::value_error 如果指定的源不存在
      */
     virtual void set_sync_source(const std::string& clock_source,
         const std::string& time_source,
@@ -625,6 +823,18 @@ public:
      * \throws if the device is incapable of exporting the
      *         clock signal.
      */
+    /*! 将时间信号（PPS）发送到输出连接器。
+     *
+     * 此函数仅适用于带有 PPS 输出的设备。
+     * 默认情况下，为了方便使用，PPS 输出是启用的。
+     * 可以使用此函数来启用或禁用该输出。
+     *
+     * 如果设备不支持此操作，调用该方法将会抛出 uhd::runtime_error 异常。
+     *
+     * \param enb 设置为 true 表示输出时间信号。
+     * \param mboard 指定要设置的主板编号。
+     * \throws 如果设备无法导出时钟信号，则会抛出异常。
+     */
     virtual void set_time_source_out(
         const bool enb, const size_t mboard = ALL_MBOARDS) = 0;
 
@@ -637,7 +847,7 @@ public:
      * Get a motherboard sensor value.
      * \param name the name of the sensor
      * \param mboard the motherboard index 0 to M-1
-     * \return a sensor value object
+     * \return a sensor value object 返回一个传感器值对象
      */
     virtual sensor_value_t get_mboard_sensor(
         const std::string& name, size_t mboard = 0) = 0;
@@ -645,7 +855,7 @@ public:
     /*!
      * Get a list of possible motherboard sensor names.
      * \param mboard the motherboard index 0 to M-1
-     * \return a vector of sensor names
+     * \return a vector of sensor names 返回一个传感器名称容器
      */
     virtual std::vector<std::string> get_mboard_sensor_names(size_t mboard = 0) = 0;
 
@@ -657,6 +867,14 @@ public:
      * \param mboard which motherboard to set the user register
      * \throws uhd::not_implemented_error on RFNoC devices, uhd::lookup_error on
      *         other devices if this API is not implemented.
+     */
+    /*! // 供用户自行设计的函数，需要调用一个回调，示例请参考:host/lib/usrp/b200/b200_impl.cpp 的 setup the mboard eeprom
+     * 对用户配置寄存器总线执行写操作。该功能仅在用户在设备 FPGA 中实现了自定义设置寄存器时才存在。
+     * \param addr 8 位寄存器地址
+     * \param data 32 位寄存器数值
+     * \param mboard 指定要设置用户寄存器的主板编号
+     * \throws 两种情况 对于 RFNoC 设备会抛出 uhd::not_implemented_error；
+     *         对于其他设备，如果未实现此接口，会抛出 uhd::lookup_error。
      */
     virtual void set_user_register(
         const uint8_t addr, const uint32_t data, size_t mboard = ALL_MBOARDS) = 0;
@@ -684,6 +902,25 @@ public:
      *
      * \returns Either a uhd::wb_iface object to poke the user settings, or a
      *          nullptr if the device doesn't support this interface.
+     */
+    /*! 返回一个用户设置接口对象
+     *
+     * 该功能仅在 B2xx 系列中受支持。它会返回一个对象，该对象允许读取（peek）和写入（poke）用户设置，通常这些设置是通过自定义 FPGA 镜像实现的。
+     * 如果设备不支持此类接口，则会返回一个空指针（null pointer）。这使得可以探测此功能是否存在，但如果不进行检查直接使用，可能会导致解引用错误。
+     *
+     * 一个典型的使用方式如下：
+     * ~~~~{.cpp}
+     * auto usrp = multi_usrp::make(device_args);
+     * const size_t chan = 0;
+     * auto user_settings = usrp->get_user_settings_iface(chan);
+     * if (!user_settings) {
+     *     std::cout << "No user settings!" << std::endl;
+     * } else {
+     *     user_settings->poke32(0, 23); // 向寄存器 0 写入值 23
+     * }
+     * ~~~~
+     *
+     * \returns 一个用于操作用户设置的 uhd::wb_iface 对象，或者如果设备不支持该接口，则返回 nullptr。
      */
     virtual uhd::wb_iface::sptr get_user_settings_iface(const size_t chan = 0) = 0;
 
@@ -744,6 +981,16 @@ public:
      * \param mboard the motherboard index 0 to M-1
      * \throws if an invalid spec is provided.
      */
+    /*! 设置接收（RX）前端的规格说明（subdev spec）
+     *
+     * 子设备规格（subdev spec）将子板上的物理部分映射到某个通道编号。
+     * 在调用任何涉及通道编号的方法之前，必须先设置子设备规格。
+     * 所有主板上的子设备规格必须具有相同的大小。
+     *
+     * \param spec 新的前端规格说明
+     * \param mboard 主板索引，范围为 0 到 M-1
+     * \throws 如果提供了无效的规格说明，将抛出异常。
+     */
     virtual void set_rx_subdev_spec(
         const uhd::usrp::subdev_spec_t& spec, size_t mboard = ALL_MBOARDS) = 0;
 
@@ -752,12 +999,18 @@ public:
      * \param mboard the motherboard index 0 to M-1
      * \return the frontend specification in use
      */
+     // 获取射频前端的规格说明
     virtual uhd::usrp::subdev_spec_t get_rx_subdev_spec(size_t mboard = 0) = 0;
 
     /*!
      * Get the number of RX channels in this configuration.
      * This is the number of USRPs times the number of RX channels per board,
      * where the number of RX channels per board is homogeneous among all USRPs.
+     */
+    /*!
+     * 获取当前配置下的接收（RX）通道数量。
+     * 该数量等于 USRP 设备的数量乘以每块主板上的 RX 通道数，
+     * 并且所有 USRP 的每板 RX 通道数是相同的。
      */
     virtual size_t get_rx_num_channels(void) = 0;
 
@@ -766,6 +1019,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the frontend name
      */
+     // 获取射频前端名称
     virtual std::string get_rx_subdev_name(size_t chan = 0) = 0;
 
     /*! Set the RX sample rate
@@ -776,6 +1030,15 @@ public:
      *
      * \param rate the rate in Sps
      * \param chan the channel index 0 to N-1
+     */
+    /*! 设置接收（RX）采样率
+     *
+     * 此函数会将用户请求的采样率强制调整为设备能够支持的实际采样率。
+     * 在进行强制调整时，可能会记录一条警告信息。
+     * 可调用 get_rx_rate() 来获取实际设置的采样率。
+     *
+     * \param rate 采样率，单位为样本每秒（Sps）
+     * \param chan 通道索引，范围为 0 到 N-1
      */
     virtual void set_rx_rate(double rate, size_t chan = ALL_CHANS) = 0;
 
@@ -788,6 +1051,15 @@ public:
      * \param spp the new spp value
      * \param chan the channel index 0 to N-1
      */
+    /*! 设置接收（RX）流传输中每个数据包发送的样本数（spp）
+     *
+     * 对于 RFNoC 设备，此函数会直接在射频模块（radio）上设置 spp 值。
+     * 对于较老的设备，它会将 spp 值注入到后续的 get_rx_stream() 调用中，
+     * 但不会改变已有的流对象（streamer）。
+     *
+     * \param spp 新的 spp 值
+     * \param chan 通道索引，范围为 0 到 N-1
+     */
     virtual void set_rx_spp(const size_t spp, const size_t chan = ALL_CHANS) = 0;
 
     /*!
@@ -795,6 +1067,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the rate in Sps
      */
+     // 获取实际的接收采样率
     virtual double get_rx_rate(size_t chan = 0) = 0;
 
     /*!
@@ -802,6 +1075,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the meta range of rates
      */
+     // 获取可用的采样率范围
     virtual meta_range_t get_rx_rates(size_t chan = 0) = 0;
 
     /*! Set the RX center frequency.
@@ -814,6 +1088,16 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a tune result object
      */
+     /*! 设置接收的中心频率
+      *
+      * 如果设置的频率超出了可用范围，会自动调整为最近的有效频率。
+      * 检查返回值或者使用 get_rx_freq() 函数检查实际的中心频率。
+      *
+      *
+      * \param tune_request 需要调谐到的频率
+      * \param chan the channel index 0 to N-1
+      * \return 调谐的结果
+      */
     virtual tune_result_t set_rx_freq(
         const tune_request_t& tune_request, size_t chan = 0) = 0;
 
@@ -822,6 +1106,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the frequency in Hz
      */
+     // 获取接收的中心频率
     virtual double get_rx_freq(size_t chan = 0) = 0;
 
     /*!
@@ -833,6 +1118,15 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a frequency range object
      */
+    /*!
+     * 获取接收（RX）中心频率范围。
+     * 此范围包含整个接收链路可调的频率范围，
+     * 包括前端链路和数字下变频链路。
+     * 该可调范围不包括基带带宽；
+     * 用户应假设实际的频率范围为 ± 采样率的一半（samp_rate/2）。
+     * \param chan 频道索引，从 0 到 N-1
+     * \return 一个频率范围对象
+     */
     virtual freq_range_t get_rx_freq_range(size_t chan = 0) = 0;
 
     /*!
@@ -840,6 +1134,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a frequency range object
      */
+     // 获取射频前端的中心频率范围。
     virtual freq_range_t get_fe_rx_freq_range(size_t chan = 0) = 0;
 
     /**************************************************************************
@@ -857,6 +1152,19 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a vector of strings for possible LO names, or an empty list of
      *         this doesn't apply (i.e. there are no controllable LO stages)
+     */
+    /*!
+     * 获取可能的本振（LO）级名称列表
+     *
+     * 示例：在 TwinRX(是高性能双通道接收射频前端子板) 上，
+     * 此函数将返回 "LO1"、"LO2"。这些名称可用于其他与本振相关的 API 调用，
+     * 因此此函数可用于自动枚举本振级。
+     * 返回值为空并不代表没有本振，而是表示该射频设备未实现本振相关的 API，
+     * 通常意味着这些本振无法通过设置频率以外的方式直接控制。
+     *
+     * \param chan 频道索引，从 0 到 N-1
+     * \return 一个包含可能的本振名称的字符串向量；
+     *         若返回空列表，则表示此功能不适用（即没有可控的本振级）
      */
     virtual std::vector<std::string> get_rx_lo_names(size_t chan = 0) = 0;
 
@@ -878,6 +1186,21 @@ public:
      * \throws uhd::value_error if the device can set the LO source, but the LO
      *                          name is invalid.
      */
+    /*!
+     * 为 USRP 设备设置本振（LO）源。
+     *
+     * 对于支持可选本振源的 USRP 设备，此函数允许在不同源之间切换。
+     * 常见的源选项包括：internal（内部）、external（外部）。
+     * 可调用 get_rx_lo_sources() 来列出所有有效的源选项。
+     * 如果传入无效的参数，将会抛出异常。
+     *
+     * \param src 表示本振源的字符串
+     * \param name 要更新的本振级名称。如果使用通配符值 ALL_LOS，则该设置将应用于该通道上的所有本振。
+     *             可调用 get_tx_lo_names() 获取有效名称列表。
+     * \param chan 频道索引，从 0 到 N-1
+     * \throws uhd::not_implemented_error 如果设备不支持设置本振源
+     * \throws uhd::value_error 如果设备支持设置，但指定的本振名称无效
+     */
     virtual void set_rx_lo_source(
         const std::string& src, const std::string& name = ALL_LOS, size_t chan = 0) = 0;
 
@@ -889,6 +1212,10 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the configured LO source
      */
+     /*
+      * 获取当前选择的本振源。
+      * 没有可控本振源的通道将会始终返回“内部”源
+      */
     virtual const std::string get_rx_lo_source(
         const std::string& name = ALL_LOS, size_t chan = 0) = 0;
 
@@ -904,6 +1231,12 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a vector of strings for possible settings
      */
+     /*
+      * 获取可用的本振源列表
+      * 没有可控本振源的通道将返回 "internal"。
+      * 常见取值包括 "internal" 和 "external"，不过某些设备（例如 TwinRX）可能提供更多选项，如 "companion"。
+      * 这些选项是设备特定的，因此请查阅对应设备的手册以获取详细信息。
+      */
     virtual std::vector<std::string> get_rx_lo_sources(
         const std::string& name = ALL_LOS, size_t chan = 0) = 0;
 
@@ -917,6 +1250,16 @@ public:
      * \param chan the channel index 0 to N-1 for the source channel
      * \throws uhd::runtime_error if LO exporting is not enabled
      */
+    /*!
+     * 设置设备使用的本振（LO）是否导出
+     *
+     * 对于支持本振导出的 USRP 设备，此函数用于配置指定通道的本振是否导出。
+     *
+     * \param enabled 若为 true，则导出本振信号
+     * \param name 要更新的本振级名称
+     * \param chan 本振来源通道的索引，范围为 0 到 N-1
+     * \throws uhd::runtime_error 如果设备未启用本振导出功能
+     */
     virtual void set_rx_lo_export_enabled(
         bool enabled, const std::string& name = ALL_LOS, size_t chan = 0) = 0;
 
@@ -925,6 +1268,7 @@ public:
      * \param name the name of the LO stage to query
      * \param chan the channel index 0 to N-1
      */
+     // 如果当前选定的 LO 被导出，返回 true
     virtual bool get_rx_lo_export_enabled(
         const std::string& name = ALL_LOS, size_t chan = 0) = 0;
 
@@ -952,6 +1296,23 @@ public:
      * \return a coerced LO frequency
      * \throws if the LO name is not valid.
      */
+    /*!
+     * 设置接收（RX）本振（LO）频率（高级功能）。
+     *
+     * 实际行为因设备而异。但通常情况下，此函数会强制底层驱动进入某种状态。典型情形包括：
+     * - 若使用内部本振，调用此函数可将某个本振锁定在特定频率。这可能会迫使驱动选择不同的中频（IF）设置，
+     *   在某些频段下，这种方式可以用来减少杂散（spurs）信号。
+     * - 若使用外部本振，在这种情况下，此函数用于通知 UHD 实际提供的外部本振频率。
+     *   唯一必须调用该函数的情况是：当本振源被设置为 external，但外部本振无法调到 UHD 计算出的
+     *   精确频率，以实现目标中心频率时。此时调用 set_rx_lo_freq() 可以让 UHD 知道实际本振频率
+     *   与期望值不同，从而尝试通过其他方式进行补偿。
+     *
+     * \param freq 要设置的本振频率
+     * \param name 要设置的本振级名称
+     * \param chan 通道索引，范围为 0 到 N-1
+     * \return 实际被强制（coerced）的本振频率
+     * \throws 如果指定的本振名称无效，则抛出异常
+     */
     virtual double set_rx_lo_freq(
         double freq, const std::string& name, size_t chan = 0) = 0;
 
@@ -965,6 +1326,16 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the configured LO frequency
      */
+    /*!
+     * 获取当前接收（RX）本振（LO）频率（高级功能）。
+     *
+     * 如果该通道没有可独立配置的本振，将返回当前的射频（RF）频率。
+     * 更多信息请参考 set_rx_lo_freq()。
+     *
+     * \param name 要查询的本振级名称
+     * \param chan 通道索引，范围为 0 到 N-1
+     * \return 当前配置的本振频率
+     */
     virtual double get_rx_lo_freq(const std::string& name, size_t chan = 0) = 0;
 
     /*!  Get the LO frequency range of the RX LO.
@@ -976,6 +1347,11 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a frequency range object
      */
+     /*! 获取接收 LO 的频率范围
+      *
+      * 如果当前通道没有独立可配置的 LO，
+      * 则会返回对应的 RF 接收频率范围
+      */
     virtual freq_range_t get_rx_lo_freq_range(
         const std::string& name, size_t chan = 0) = 0;
 
@@ -990,6 +1366,18 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a vector of strings for possible LO names, or an empty list of
      *         this doesn't apply (i.e. there are no controllable LO stages)
+     */
+    /*!
+     * 获取可能的发射（TX）本振（LO）级名称列表
+     *
+     * 另请参考 get_rx_lo_names()。
+     *
+     * 返回值为空并不表示没有本振，而是表示该射频设备未实现本振相关的 API，
+     * 通常意味着这些本振无法通过除设置频率以外的方式直接控制。
+     *
+     * \param chan 通道索引，范围为 0 到 N-1
+     * \return 包含可能本振名称的字符串向量；若返回空列表，表示该功能不适用
+     *         （即没有可控的本振级）
      */
     virtual std::vector<std::string> get_tx_lo_names(size_t chan = 0) = 0;
 
@@ -1008,6 +1396,18 @@ public:
      *             argument values.
      * \param chan the channel index 0 to N-1
      */
+    /*! 为 USRP 设备设置发射（TX）本振（LO）源。
+     *
+     * 对于支持可选本振源的 USRP 设备，此函数允许在多个本振源之间切换。
+     * 常见的源选项包括："internal"（内部）和 "external"（外部）。
+     * 可调用 get_tx_lo_sources() 来枚举所有有效的选项。
+     * 如果调用此函数时传入了无效参数，将会抛出异常。
+     *
+     * \param src 表示本振源的字符串
+     * \param name 要更新的本振级名称。如果使用通配符值 ALL_LOS，则该设置会应用到该通道上的所有本振。
+     *             可调用 get_tx_lo_names() 获取所有有效的参数值。
+     * \param chan 通道索引，范围为 0 到 N-1
+     */
     virtual void set_tx_lo_source(const std::string& src,
         const std::string& name = ALL_LOS,
         const size_t chan       = 0) = 0;
@@ -1020,6 +1420,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the configured LO source
      */
+     // 获取当前选择的 TX 本振源
     virtual const std::string get_tx_lo_source(
         const std::string& name = ALL_LOS, const size_t chan = 0) = 0;
 
@@ -1033,6 +1434,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a vector of strings for possible settings
      */
+     // 获取可用的本振源列表
     virtual std::vector<std::string> get_tx_lo_sources(
         const std::string& name = ALL_LOS, const size_t chan = 0) = 0;
 
@@ -1045,6 +1447,11 @@ public:
      * \param name the name of the LO stage to update
      * \param chan the channel index 0 to N-1 for the source channel
      * \throws uhd::runtime_error if LO exporting is not enabled
+     */
+    /*!
+     * 设置设备所使用的发射（TX）本振（LO）是否导出
+     *
+     * 对于支持本振信号导出的 USRP 设备，此函数用于配置指定通道使用的本振是否导出。
      */
     virtual void set_tx_lo_export_enabled(
         const bool enabled, const std::string& name = ALL_LOS, const size_t chan = 0) = 0;
@@ -1081,6 +1488,22 @@ public:
      * \return a coerced LO frequency
      * \throws if the LO name is not valid.
      */
+    /*!
+     * 设置发射（TX）本振（LO）频率（高级功能）。
+     *
+     * 实际行为因设备而异。但通常情况下，此函数会强制底层驱动进入某种特定状态。典型情形包括：
+     * - 使用内部本振：调用此函数可将某个本振固定在特定频率。这样可能会促使驱动为不同的阶段选择不同的中频（IF），
+     *   在某些频段下，这种方式有助于减少杂散（spurs）信号。
+     * - 使用外部本振：此时，此函数用于通知 UHD 实际输入的外部本振频率。
+     *   唯一需要调用此函数的情况是：当本振源设置为 external，但外部本振无法精确调谐到 UHD 为实现某个中心频率而计算出的频率。
+     *   此时调用 set_tx_lo_freq() 可以让 UHD 知道当前的本振频率并不等于期望值，从而可能采取其他方式来补偿该偏差。
+     *
+     * \param freq 要设置的本振频率
+     * \param name 要更新的本振级名称
+     * \param chan 通道索引，范围为 0 到 N-1
+     * \return 实际被强制设定的本振频率
+     * \throws 如果指定的本振名称无效，则抛出异常
+     */
     virtual double set_tx_lo_freq(
         const double freq, const std::string& name, const size_t chan = 0) = 0;
 
@@ -1094,6 +1517,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the configured LO frequency
      */
+     // 获取当前发射（TX）本振（LO）频率
     virtual double get_tx_lo_freq(const std::string& name, const size_t chan = 0) = 0;
 
     /*!  Get the LO frequency range of the TX LO.
@@ -1105,6 +1529,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a frequency range object
      */
+     // 获取可用的 TX LO 频率范围
     virtual freq_range_t get_tx_lo_freq_range(
         const std::string& name, const size_t chan = 0) = 0;
 
@@ -1123,6 +1548,18 @@ public:
      * \param gain the gain in dB
      * \param name the name of the gain element
      * \param chan the channel index 0 to N-1
+     */
+    /*! 为指定的增益单元设置接收（RX）增益值。
+     *
+     * 如果所请求的增益值超出有效范围，则会被强制调整为一个有效值。
+     * 可调用 get_rx_gain_range() 获取当前有效的增益范围；
+     * 设置后可调用 get_rx_gain() 获取实际应用的增益值（即被强制调整后的值）。
+     *
+     * 如果 name 为空字符串，则增益将在所有增益单元之间分配。
+     *
+     * \param gain 以 dB 为单位的增益值
+     * \param name 增益单元的名称
+     * \param chan 通道索引，范围为 0 到 N-1
      */
     virtual void set_rx_gain(double gain, const std::string& name, size_t chan = 0) = 0;
 
@@ -1148,6 +1585,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \throws if the requested gain profile name is not valid.
      */
+     // profile 疑似只在 RFNoC 设备中存在
     virtual void set_rx_gain_profile(
         const std::string& profile, const size_t chan = 0) = 0;
 
@@ -1181,6 +1619,21 @@ public:
      * \param chan the channel index 0 to N-1
      * \throws A uhd::runtime_error if the gain value is outside [0, 1].
      */
+    /*!
+     * 设置归一化的接收（RX）增益值。
+     *
+     * 归一化增益值的范围为 [0, 1]，其中 0 表示设备支持的最小增益，
+     * 1 表示最大增益，且与具体设备无关。中间的值通过线性插值得出。
+     * 如果所设置的归一化增益超出该范围，将抛出异常。
+     *
+     * 请查阅具体设备的手册，了解其增益范围的详细说明。
+     *
+     * 注意：此函数无法指定具体的增益单元名称，它始终设置的是整体增益。
+     *
+     * \param gain 归一化增益值
+     * \param chan 通道索引，范围为 0 到 N-1
+     * \throws 若增益值不在 [0, 1] 范围内，则抛出 uhd::runtime_error 异常。
+     */
     virtual void set_normalized_rx_gain(double gain, size_t chan = 0) = 0;
 
     /*! Enable or disable the RX AGC module.
@@ -1200,6 +1653,19 @@ public:
      * \throws if the underlying device does not
      *         implement an AGC.
      */
+    /*! 启用或禁用接收端自动增益控制（RX AGC）模块。
+     *
+     * 仅部分设备支持AGC功能，包括所有B200系列USRP设备、E310及E320型号。
+     * 若在不支持AGC的设备上调用此接口，将触发异常。
+     *
+     * 启用该模块后，手动增益设置将失效。
+     * AGC将以默认配置启动，该配置适用于大多数应用场景。
+     * 设备特定配置参数可在属性树（property tree）中查看。
+     *
+     * \param enable 启用/禁用AGC（true/false）
+     * \param chan 通道索引（0至N-1）
+     * \throws 当底层设备未实现AGC功能时抛出异常
+     */
     virtual void set_rx_agc(bool enable, size_t chan = 0) = 0;
 
     /*!
@@ -1209,9 +1675,17 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the gain in dB
      */
+    /*!
+     * 获取指定增益元件的接收增益值。
+     * 当名称为空时，返回所有增益元件的增益总和。
+     * \param name 增益元件名称
+     * \param chan 通道索引（0至N-1）
+     * \return 增益值（单位：dB）
+     */
     virtual double get_rx_gain(const std::string& name, size_t chan = 0) = 0;
 
     //! A convenience wrapper for getting overall RX gain
+    //! 获取接收总增益的便捷封装函数
     double get_rx_gain(size_t chan = 0)
     {
         return this->get_rx_gain(ALL_GAINS, chan);
@@ -1236,9 +1710,14 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a gain range object
      */
+    /*!
+     * 获取指定增益单元的接收增益范围。
+     * 若名称为空，则计算整体接收增益范围。
+     */
     virtual gain_range_t get_rx_gain_range(const std::string& name, size_t chan = 0) = 0;
 
     //! A convenience wrapper for getting overall RX gain range
+    //! 获取接收增益范围的便捷封装函数
     gain_range_t get_rx_gain_range(size_t chan = 0)
     {
         return this->get_rx_gain_range(ALL_GAINS, chan);
@@ -1249,6 +1728,10 @@ public:
      * Gain elements are ordered from antenna to FPGA.
      * \param chan the channel index 0 to N-1
      * \return a vector of gain element names
+     */
+    /*!
+     * 获取接收链路中各增益单元的名称。
+     * 增益单元的顺序是从天线到 FPGA。
      */
     virtual std::vector<std::string> get_rx_gain_names(size_t chan = 0) = 0;
 
@@ -1311,6 +1794,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the bandwidth in Hz
      */
+     // 获取射频前端的接收带宽
     virtual double get_rx_bandwidth(size_t chan = 0) = 0;
 
     /*!
@@ -1318,6 +1802,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a range of bandwidths in Hz
      */
+    // 获取射频前端的接收带宽范围
     virtual meta_range_t get_rx_bandwidth_range(size_t chan = 0) = 0;
 
     /*!
@@ -1327,6 +1812,11 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the dboard interface sptr
      */
+    /*!
+     * 获取 RX 前端的子板接口对象。
+     * 子板接口可用于访问 GPIO、SPI、I2C、低速 ADC 和 DAC。
+     * \note 使用该接口需自行承担风险！?
+     */
     virtual dboard_iface::sptr get_rx_dboard_iface(size_t chan = 0) = 0;
 
     /*!
@@ -1335,6 +1825,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a sensor value object
      */
+     // 获取接收射频前端的传感器值
     virtual sensor_value_t get_rx_sensor(const std::string& name, size_t chan = 0) = 0;
 
     /*!
@@ -1393,6 +1884,7 @@ public:
       * 此时若先前已有一个校正值，该值会保持恒定，
       * 直到用户再次启用自动校正或通过手动接口设置新的偏移值。
       */
+     // 根据经验来看，AD9361的频谱中心是会有本振泄露
     virtual void set_rx_dc_offset(const bool enb, size_t chan = ALL_CHANS) = 0;
 
     /*!
@@ -1406,7 +1898,6 @@ public:
      * 设置一个固定的接收端直流偏移（DC Offset）值。
      * 该值为复数类型，用于同时控制 I（同相）和 Q（正交）分量。
      * 仅在禁用自动校正时使用此函数。
-
      * \param offset 直流偏移值（1.0 表示满量程）
      * \param chan 通道索引，从 0 到 N-1
      */
@@ -1494,6 +1985,7 @@ public:
      * \throws uhd::not_implemented_error if this functionality does not exist
      *         for this device
      */
+     // 注意：大多数设备不支持此功能
     virtual void set_rx_power_reference(
         const double power_dbm, const size_t chan = 0) = 0;
 
@@ -1509,6 +2001,7 @@ public:
      * \throws uhd::not_implemented_error if this functionality does not exist
      *         for this device
      */
+    // 注意：大多数设备不支持此功能
     virtual double get_rx_power_reference(const size_t chan = 0) = 0;
 
     /*! Return the available RX power range given the current configuration
@@ -1519,6 +2012,15 @@ public:
      * change frequently, so don't assume an immutable range.
      *
      * \param chan The channel index
+     */
+    /*!
+     * 返回当前配置下可用的接收功率范围
+     *
+     * 该函数将返回在当前频率、增益配置、天线以及其他可能影响
+     * 可用功率范围的设置下的功率范围。请注意，可用的功率范围
+     * 可能会频繁变化，因此不要假设其是固定不变的。
+     *
+     * \param chan 通道索引
      */
     virtual meta_range_t get_rx_power_range(const size_t chan) = 0;
 
@@ -1534,6 +2036,18 @@ public:
      * \param mboard the motherboard index 0 to M-1
      * \throws if an invalid spec is provided.
      */
+    /*!
+     * 设置发射端前端（TX frontend）规格：
+     *
+     * 子设备规格（subdev spec）将子板上的物理部件映射到通道编号。
+     * 在调用任何带通道编号的方法之前，必须先设置子设备规格。
+     * 所有主板（motherboards）上的子设备规格大小必须一致。
+     *
+     * \param spec    新的前端规格
+     * \param mboard  主板索引，范围为 0 到 M-1
+     *
+     * \throws 如果提供了无效的规格，将抛出异常。
+     */
     virtual void set_tx_subdev_spec(
         const uhd::usrp::subdev_spec_t& spec, size_t mboard = ALL_MBOARDS) = 0;
 
@@ -1542,12 +2056,26 @@ public:
      * \param mboard the motherboard index 0 to M-1
      * \return the frontend specification in use
      */
+    /*!
+     * 常见的 TX frontend specification 表达格式:
+     * - "A:TX0 B:TX0"
+     * 这个字符串表示两个通道：
+     * - 第 0 个通道（channel 0） → 子板 A 的 TX0 端口
+     * - 第 1 个通道（channel 1） → 子板 B 的 TX0 端口
+     *
+     * \example usrp->set_tx_subdev_spec("A:TX0 B:TX0");
+     */
     virtual uhd::usrp::subdev_spec_t get_tx_subdev_spec(size_t mboard = 0) = 0;
 
     /*!
      * Get the number of TX channels in this configuration.
      * This is the number of USRPs times the number of TX channels per board,
      * where the number of TX channels per board is homogeneous among all USRPs.
+     */
+    /*!
+     * 获取当前配置下的发射（TX）通道数量。
+     * 该数量等于 USRP 设备数量乘以每块主板上的 TX 通道数，
+     * 且所有 USRP 设备的每块主板上的 TX 通道数需保持一致。
      */
     virtual size_t get_tx_num_channels(void) = 0;
 
@@ -1591,6 +2119,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the meta range of rates
      */
+     // 获取可用的发射速率范围
     virtual meta_range_t get_tx_rates(size_t chan = 0) = 0;
 
     /*! Set the TX center frequency.
@@ -1621,6 +2150,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the frequency in Hz
      */
+     // 获取当前发射中心频率
     virtual double get_tx_freq(size_t chan = 0) = 0;
 
     /*!
@@ -1632,6 +2162,13 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a frequency range object
      */
+    /*!
+     * 获取发射端（TX）的中心频率范围。
+     * 此范围包含整个 TX 链路的可调频率范围，
+     * 包括前端链路和数字上变频链路。
+     * 该可调范围不包含基带带宽；
+     * 用户应假设实际有效频率范围为 ±(采样率 / 2)。
+     */
     virtual freq_range_t get_tx_freq_range(size_t chan = 0) = 0;
 
     /*!
@@ -1639,6 +2176,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a frequency range object
      */
+    // 获取可用的发射中心频率范围
     virtual freq_range_t get_fe_tx_freq_range(size_t chan = 0) = 0;
 
     /*! Set the TX gain value for the specified gain element.
@@ -1653,6 +2191,19 @@ public:
      * \param gain the gain in dB
      * \param name the name of the gain element
      * \param chan the channel index 0 to N-1
+     */
+    /*!
+     * 为指定的增益单元设置发射端（TX）增益值。
+     *
+     * 如果请求的增益值超出有效范围，将会被强制调整为一个有效值。
+     * 可调用 get_rx_gain_range() 获取当前有效的增益范围，
+     * 调用 get_rx_gain() 可在设置之后获取实际被采用的增益值。
+     *
+     * 若 name 为空，则将增益值分配到所有增益单元。
+     *
+     * \param gain 增益值，单位为 dB
+     * \param name 增益单元的名称
+     * \param chan 通道索引，范围为 0 到 N-1
      */
     virtual void set_tx_gain(double gain, const std::string& name, size_t chan = 0) = 0;
 
@@ -1706,6 +2257,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \throws A uhd::runtime_error if the gain value is outside [0, 1].
      */
+     // 设置归一化发射增益值
     virtual void set_normalized_tx_gain(double gain, size_t chan = 0) = 0;
 
     /*!
@@ -1715,6 +2267,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the gain in dB
      */
+     // 获取特定增益元件的发射增益值
     virtual double get_tx_gain(const std::string& name, size_t chan = 0) = 0;
 
     //! A convenience wrapper for getting overall TX gain
@@ -1834,6 +2387,16 @@ public:
      *
      * \param chan The channel index
      */
+    /*! 返回当前配置下可用的发射功率范围
+     *
+     * 此函数将根据当前的频率、增益配置、天线，
+     * 以及其他可能影响可用功率范围的设置，
+     * 返回可用的发射功率范围。
+     * 请注意，可用功率范围可能会频繁变化，
+     * 因此不应假设该范围是固定不变的。
+     *
+     * \param chan 通道索引
+     */
     virtual meta_range_t get_tx_power_range(const size_t chan) = 0;
 
     /*!
@@ -1869,6 +2432,15 @@ public:
      * \param bandwidth the bandwidth in Hz
      * \param chan the channel index 0 to N-1
      */
+    /*!
+     * 设置前端的发射（TX）带宽。
+     *
+     * 如果所设置的带宽超出有效范围，将被强制调整为最近的有效值。
+     * 可调用 get_tx_bandwidth_range() 来获取带宽的有效取值范围。
+     *
+     * \param bandwidth 带宽值，单位为 Hz
+     * \param chan 通道索引，范围为 0 到 N-1
+     */
     virtual void set_tx_bandwidth(double bandwidth, size_t chan = 0) = 0;
 
     /*!
@@ -1883,6 +2455,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a range of bandwidths in Hz
      */
+     // 获取可用的射频前端发射增益范围
     virtual meta_range_t get_tx_bandwidth_range(size_t chan = 0) = 0;
 
     /*!
@@ -1892,6 +2465,14 @@ public:
      * \param chan the channel index 0 to N-1
      * \return the dboard interface sptr
      */
+    /*!
+     * 获取发射端（TX）前端的子板接口对象。
+     * 子板接口可以访问 GPIO、SPI、I2C、低速 ADC 和 DAC。
+     * 使用该接口需自行承担风险！
+     *
+     * \param chan 通道索引，范围为 0 到 N-1
+     * \return 子板接口的智能指针（shared_ptr）
+     */
     virtual dboard_iface::sptr get_tx_dboard_iface(size_t chan = 0) = 0;
 
     /*!
@@ -1900,6 +2481,7 @@ public:
      * \param chan the channel index 0 to N-1
      * \return a sensor value object
      */
+     // 获取射频前端传感器的值
     virtual sensor_value_t get_tx_sensor(const std::string& name, size_t chan = 0) = 0;
 
     /*!
@@ -1915,6 +2497,8 @@ public:
      * \param offset the dc offset (1.0 is full-scale)
      * \param chan the channel index 0 to N-1
      */
+     // 设置一个发射直流偏移补偿常量
+     // 该值为复数，会同时控制 I、Q 分量
     virtual void set_tx_dc_offset(
         const std::complex<double>& offset, size_t chan = ALL_CHANS) = 0;
 
@@ -1922,6 +2506,7 @@ public:
      * Get the valid range for TX DC offset values.
      * \param chan the channel index 0 to N-1
      */
+    // 获取当前的发射直流偏移补偿常量
     virtual meta_range_t get_tx_dc_offset_range(size_t chan = 0) = 0;
 
     /*!
@@ -1931,6 +2516,10 @@ public:
      * \param correction the complex correction (1.0 is full-scale)
      * \param chan the channel index 0 to N-1
      */
+    /*!
+     * 设置发射端（TX）前端的 IQ 不平衡校正。
+     * 用于调整 I 和 Q 的幅度与相位。
+     */
     virtual void set_tx_iq_balance(
         const std::complex<double>& correction, size_t chan = ALL_CHANS) = 0;
 
@@ -1939,7 +2528,7 @@ public:
      ******************************************************************/
 
     /*! Enumerate GPIO banks on the specified device.
-     *
+     * 枚举指定设备上的 GPIO 组。
      * \param mboard the motherboard index 0 to M-1
      * \return a list of string for each bank name
      */
@@ -1997,6 +2586,55 @@ public:
      * \param mboard the motherboard index 0 to M-1
      * \throws an exception if either bank or attr are invalid values.
      */
+    /*!
+     * 在指定的 GPIO 组上设置 GPIO 属性。
+     *
+     * 可能的属性名称包括：
+     *  - CTRL    - 1 表示 ATR 模式，0 表示 GPIO 模式
+     *  - DDR     - 1 表示输出，0 表示输入
+     *  - OUT     - GPIO 输出电平（非 ATR 模式下）
+     *  - ATR_0X  - ATR 空闲状态
+     *  - ATR_RX  - ATR 仅接收状态
+     *  - ATR_TX  - ATR 仅发送状态
+     *  - ATR_XX  - ATR 全双工状态
+     *
+     * 关于 GPIO 组名称的说明：请使用 get_gpio_banks() 查询有效的组名称列表。
+     * 注意，对于 RFNoC 设备（如 E3xx、N3xx、X3x0、X410），使用此 API
+     * 与使用 radio_control::set_gpio_attr() API 行为略有不同。
+     * 为了向后兼容，该 API 没有专门的参数来指定具体的射频模块，
+     * 尽管上述设备为每个射频模块提供了独立的 GPIO 组。
+     * 因此，此 API 允许通过在 GPIO 组名称后附加插槽名（通常为 "A" 或 "B"）
+     * 来区分不同的射频模块。以下示例展示了 USRP N310 上 RFNoC 和 multi_usrp API 的区别：
+     * ~~~{.py}
+     * my_usrp = uhd.usrp.MultiUSRP("type=n3xx")
+     * print(my_usrp.get_gpio_banks()) # 输出：FP0A, FP0B
+     * # 现在将所有引脚设置为 Radio 1 的 GPIO 模式（注意 'FP0B' 中的 'B'）：
+     * my_usrp.set_gpio_attr("FP0B", "CTRL", 0x000)
+     * # 为了兼容旧版本，可以省略 'A'，默认对应 Radio 0。
+     * # 所以下列代码等价：
+     * my_usrp.set_gpio_attr("FP0", "CTRL", 0x000)
+     * my_usrp.set_gpio_attr("FP0A", "CTRL", 0x000)
+     * ### 以下是使用 RFNoC API 达成相同操作的方式：
+     * print(my_usrp.get_radio_control(0).get_gpio_banks()) # 输出：FP0
+     * print(my_usrp.get_radio_control(1).get_gpio_banks()) # 输出：FP0
+     * # 注意射频控制器只有一个 GPIO 组！
+     * # 直接访问射频时，只能指定 FP0 组：
+     * my_usrp.get_radio_control(1).set_gpio_attr("FP0", "CTRL", 0x000)
+     * ~~~
+     *
+     * \p mask 参数用于指定只对选定引脚应用 \p value，
+     * 其余引脚保持原值。由于该特性，此 API 调用会进行两次寄存器操作（一次读，一次写）。
+     *
+     * 注意，仅调用此 API 可能不足以配置物理 GPIO 引脚，详情请参见 set_gpio_src()。
+     *
+     * \param bank   GPIO 组名称
+     * \param attr   GPIO 属性名称（见上述列表）
+     * \param value  GPIO 组的新值
+     * \param mask   位掩码，指定哪些引脚被修改
+     * \param mboard 主板索引，范围为 0 到 M-1
+     *
+     * \throws 如果 bank 或 attr 值无效，将抛出异常。
+     */
     virtual void set_gpio_attr(const std::string& bank,
         const std::string& attr,
         const uint32_t value,
@@ -2022,6 +2660,26 @@ public:
      * \param mboard the motherboard index 0 to M-1
      * \return the value set for this attribute
      */
+    /*!
+     * 获取指定 GPIO 组的 GPIO 属性值。
+     *
+     * 可能的属性名称包括：
+     *  - CTRL     - 1 表示 ATR 模式，0 表示 GPIO 模式
+     *  - DDR      - 1 表示输出，0 表示输入
+     *  - OUT      - GPIO 输出电平（非 ATR 模式下）
+     *  - ATR_0X   - ATR 空闲状态
+     *  - ATR_RX   - ATR 仅接收状态
+     *  - ATR_TX   - ATR 仅发送状态
+     *  - ATR_XX   - ATR 全双工状态
+     *  - READBACK - 读取输入的 GPIO 状态
+     *
+     * 有关 GPIO 组名称，请参考 \code set_gpio_attr()。
+     *
+     * \param bank   GPIO 组名称
+     * \param attr   GPIO 属性名称（见上述列表）
+     * \param mboard 主板索引，范围为 0 到 M-1
+     * \return       该属性当前设置的值
+     */
     virtual uint32_t get_gpio_attr(
         const std::string& bank, const std::string& attr, const size_t mboard = 0) = 0;
 
@@ -2041,6 +2699,21 @@ public:
      * \param mboard the motherboard index 0 to M-1
      * \return a list of valid bank names
      */
+    /*!
+     * 返回该主板上可以作为源控制的 GPIO 组列表。
+     *
+     * 这里返回的 GPIO 组与 get_gpio_banks() 返回的不同。
+     * 本函数返回的组名可以作为 get_gpio_src()、get_gpio_srcs() 和 set_gpio_src() 的参数。
+     * 这些返回值对应 USRP 的物理连接器，例如：
+     * - 在 X410 上，会返回 "GPIO0" 和 "GPIO1"（参见 \ref page_x400_gpio_api）。
+     * - 在 X310 上，会返回单个值 "FP0"（参见 \ref xgpio_fpanel_gpio）。
+     *
+     * 某些主板的 GPIO 组可以由不同来源驱动，例如：
+     * N310 可以由任意射频通道驱动前面板 GPIO，或者由处理系统（PS）驱动。
+     *
+     * \param mboard 主板索引，范围为 0 到 M-1
+     * \return 有效的 GPIO 组名称列表
+     */
     virtual std::vector<std::string> get_gpio_src_banks(const size_t mboard = 0) = 0;
 
     /*! Enumerate sources for a gpio bank on the specified device.
@@ -2053,6 +2726,15 @@ public:
      * \param mboard the motherboard index 0 to M-1
      * \return a list of strings with each valid source for the chosen bank
      */
+    /*!
+     * 列出指定设备上某个 GPIO 组（bank）可用的驱动源（source）。
+     *
+     * 所选 GPIO 组中的每个引脚都可以由返回的某个源来驱动。
+     *
+     * \param bank GPIO 组的名称（通常是连接器名），可通过调用 get_gpio_src_banks() 获取合法的值。
+     * \param mboard 主板索引（0 到 M-1）
+     * \return 一个字符串列表，列出该 GPIO 组支持的所有合法驱动源
+     */
     virtual std::vector<std::string> get_gpio_srcs(
         const std::string& bank, const size_t mboard = 0) = 0;
 
@@ -2064,6 +2746,13 @@ public:
      * \return a list of strings for current source of each GPIO pin in the
      *         chosen bank. The length of the return value matches the number of
      *         programmable GPIO pins.
+     */
+    /*! 获取 GPIO 组中每个引脚当前的控制源。
+     *
+     * \param bank GPIO 组（连接器）的名称。可调用 get_gpio_src_banks() 获取合法取值。
+     * \param mboard 主板索引，范围为 0 到 M-1
+     * \return 一个字符串列表，表示所选 GPIO 组中每个引脚当前的控制源。
+     *         返回值的长度与该 GPIO 组中可编程的 GPIO 引脚数量相同。
      */
     virtual std::vector<std::string> get_gpio_src(
         const std::string& bank, const size_t mboard = 0) = 0;
@@ -2082,6 +2771,19 @@ public:
      * \throws uhd::not_implemented_error if the current motherboard does not
      *         support this feature
      */
+    /*!
+     * 为GPIO组中的每个引脚设置信号源。
+     *
+     * 注意：输入向量长度必须与该组可编程GPIO引脚数量严格一致，否则将引发错误。
+     *
+     * \param bank GPIO组名称（连接器标识），有效值可通过get_gpio_src_banks()获取
+     * \param src 字符串列表，指定GPIO组中每个引脚的信号源
+     * \param mboard 主板索引（0至M-1）
+     * \throws uhd::key_error 当指定组不存在时
+     * \throws uhd::value_error 当信号源无效时
+     * \throws uhd::not_implemented_error 当前主板不支持此功能时
+     */
+     // 仅在 RFNoC 设备上可用
     virtual void set_gpio_src(const std::string& bank,
         const std::vector<std::string>& src,
         const size_t mboard = 0) = 0;
@@ -2147,6 +2849,14 @@ public:
      * \param filter the filter_info_base::sptr of the filter object to be written
      * \param chan TX channel index 0 to N-1
      */
+    /*!
+     * 将通过 get_tx_filter() 获取的滤波器写回到信号路径中。
+     * 该滤波器可以是原先返回的滤波器的修改版本。
+     *
+     * \param name 滤波器名称，由 get_tx_filter_names() 返回
+     * \param filter 要写入的滤波器对象（filter_info_base::sptr 类型）
+     * \param chan 发射（TX）通道索引，范围为 0 到 N-1
+     */
     virtual void set_tx_filter(const std::string& name,
         uhd::filter_info_base::sptr filter,
         const size_t chan) = 0;
@@ -2167,6 +2877,22 @@ public:
      * \param mboard The motherboard index
      * \returns A reference to the mb_controller for the corresponding mboard
      * \throws uhd::not_implemented_error if not on an RFNoC device.
+     */
+    /*! 直接获取底层 mb_controller 对象的访问权限。
+     *
+     * 注意：这是一个高级 API，主要用于应用程序在使用 multi_usrp 时，
+     * 需要访问 multi_usrp 未暴露的 mb_controller 特殊功能的极端情况。
+     * 需要注意的是，通过直接访问 mb_controller 可能会导致
+     * mb_controller 和 multi_usrp 进入异常状态。
+     * 因此，对于常规的 mb_controller 操作，强烈建议不要使用此 API，
+     * 而应使用 multi_usrp 的原生 API 调用。
+     *
+     * mb_controller 的生命周期与 device 对象的生命周期绑定，
+     * 因此不允许在本函数返回结果上存储引用。
+     *
+     * \param mboard 主板（motherboard）索引
+     * \returns 对应 mboard 的 mb_controller 的引用
+     * \throws uhd::not_implemented_error 如果不是在 RFNoC 设备上运行。
      */
     virtual uhd::rfnoc::mb_controller& get_mb_controller(const size_t mboard = 0) = 0;
 };

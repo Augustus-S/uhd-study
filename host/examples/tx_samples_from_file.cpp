@@ -237,12 +237,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     // Check Ref and LO Lock detect
+    // 检查参考信号和本振锁定检测
     std::vector<std::string> sensor_names;
     for (std::size_t channel : channel_nums) {  // 检查每个通道的本振是否锁定
         sensor_names = usrp->get_tx_sensor_names(channel);
         if (std::find(sensor_names.begin(), sensor_names.end(), "lo_locked")
             != sensor_names.end()) {
-            uhd::sensor_value_t lo_locked = usrp->get_tx_sensor("lo_locked", channel);
+            uhd::sensor_value_t lo_locked = usrp->get_tx_sensor("lo_locked", channel);  // 获取当前通道的本振锁定情况
             std::cout << boost::format("Checking TX: %s ...") % lo_locked.to_pp_string()
                       << std::endl;
             UHD_ASSERT_THROW(lo_locked.to_bool());
