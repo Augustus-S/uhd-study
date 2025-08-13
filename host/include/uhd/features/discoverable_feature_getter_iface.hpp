@@ -36,7 +36,7 @@ public:
         return *typed_p;
     }
 
-    //! Determines whether a given feature exists
+    //! Determines whether a given feature exists. 确定某种特性(功能)是否存在。
     //
     // This function should be used to gate functionality before calling
     // get_feature().

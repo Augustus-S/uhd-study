@@ -95,6 +95,7 @@ public:
         return overall_gain;
     }
 
+    // \todo：为什么要反复调用这个函数？
     void set_value(double gain, const std::string& name) override
     {
         if (not name.empty())
@@ -105,15 +106,18 @@ public:
             return; // nothing to set!
 
         // get the max step size among the gains
+        // 获取所有增益中的最大步进值
         double max_step = 0;
         for (const gain_fcns_t& fcns : all_fcns) {
             max_step = std::max(max_step, fcns.get_range().step());
         }
 
         // create gain bucket to distribute power
+        // 创建增益容器用于分配功率
         std::vector<double> gain_bucket;
 
         // distribute power according to priority (round to max step)
+        // 根据优先级分配功率（向最大步长取整）
         double gain_left_to_distribute = gain;
         for (const gain_fcns_t& fcns : all_fcns) {
             const gain_range_t range = fcns.get_range();
@@ -124,6 +128,7 @@ public:
         }
 
         // get a list of indexes sorted by step size large to small
+        // 获取一个按步长从大到小排序的索引列表
         std::vector<size_t> indexes_step_size_dec;
         for (size_t i = 0; i < all_fcns.size(); i++) {
             indexes_step_size_dec.push_back(i);
@@ -139,6 +144,8 @@ public:
 
         // distribute the remainder (less than max step)
         // fill in the largest step sizes first that are less than the remainder
+        // 分配剩余功率（小于最大步长的部分）
+        // 优先填充小于剩余功率的最大步长增益项
         for (size_t i : indexes_step_size_dec) {
             const gain_range_t range = all_fcns.at(i).get_range();
             double additional_gain =
@@ -152,6 +159,7 @@ public:
         }
 
         // now write the bucket out to the individual gain values
+        // 写增益
         for (size_t i = 0; i < gain_bucket.size(); i++) {
             all_fcns.at(i).set_value(gain_bucket.at(i));
         }
@@ -175,6 +183,7 @@ public:
 
 private:
     //! get the gain function sets in order (highest priority first)
+    //! 按顺序获取增益函数集合（优先级最高的在前）
     std::vector<gain_fcns_t> get_all_fcns(void)
     {
         std::vector<gain_fcns_t> all_fcns;

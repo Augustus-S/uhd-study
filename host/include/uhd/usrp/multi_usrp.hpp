@@ -941,6 +941,21 @@ public:
      * \returns A reference to the radio block matching the given channel
      * \throws uhd::not_implemented_error if not on an RFNoC device.
      */
+    /*! 直接获取底层 RFNoC 对象的访问权限。
+     *
+     * 注意：这是一个高级 API，主要用于应用程序在使用 multi_usrp 时，
+     * 需要访问 multi_usrp 未暴露的 radio_control 特殊功能的极端情况。
+     * 需要注意的是，直接访问 radio 可能会导致 radio 和 multi_usrp 进入异常状态。
+     * 因此，对于常规的无线电操作（如调谐、设置增益或天线等），
+     * 强烈建议不要使用此 API，而应使用 multi_usrp 的原生 API 调用。
+     *
+     * 无线电对象的生命周期与 device 对象的生命周期绑定，
+     * 因此不允许在本函数返回结果上存储引用。
+     *
+     * \param chan 通道索引
+     * \returns 与给定通道匹配的无线电模块的引用
+     * \throws uhd::not_implemented_error 如果不是在 RFNoC 设备上运行。
+     */
     virtual uhd::rfnoc::radio_control& get_radio_control(const size_t chan = 0) = 0;
 
     /*! Get a handle to any RF extension objects which may exist.

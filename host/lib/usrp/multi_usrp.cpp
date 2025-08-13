@@ -1528,6 +1528,7 @@ public:
     /**************************************************************************
      * Gain control
      *************************************************************************/
+     // gain 是传统的 spi 交互案例，进行深入研究以便理解在非 RFNoC 设备上，上位机是如何与 FPGA 进行 spi 数据通信的。
     void set_rx_gain(double gain, const std::string& name, size_t chan) override
     {
         /* Check if any AGC mode is enabled and if so warn the user */
@@ -1546,6 +1547,8 @@ public:
             }
             /* Apply gain settings to all channels.
              * If device is in AGC mode it will ignore the setting. */
+            /* 应用增益设置到全部通道。
+             * 如果设备处于 AGC 模式，则该设置会被忽略。 */
             try {
                 rx_gain_group(c)->set_value(gain, name);
             } catch (uhd::key_error&) {

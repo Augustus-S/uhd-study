@@ -69,6 +69,7 @@ bool range_t::operator!=(const range_t& other) const
 /***********************************************************************
  * meta_range_t implementation code
  **********************************************************************/
+//  检查是否严格单调递增，不是的话返回异常
 void check_meta_range_monotonic(const meta_range_t& mr)
 {
     if (mr.empty()) {
@@ -146,6 +147,7 @@ double meta_range_t::stop(void) const
     return max_stop;
 }
 
+// 计算并返回 meta_range_t 对象中所有子区间及区间间隙中非零步长的最小值。
 double meta_range_t::step(void) const
 {
     check_meta_range_monotonic(*this);

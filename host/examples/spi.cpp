@@ -16,13 +16,17 @@
 #include <boost/program_options.hpp>
 #include <iostream>
 
-static const size_t SPI_DEFAULT_CLK_PIN        = 0;
-static const size_t SPI_DEFAULT_SDI_PIN        = 1;
-static const size_t SPI_DEFAULT_SDO_PIN        = 2;
-static const size_t SPI_DEFAULT_CS_PIN         = 3;
-static const size_t SPI_DEFAULT_PAYLOAD_LENGTH = 32;
-static const std::string SPI_DEFAULT_PAYLOAD   = "0xfefe";
-static const size_t SPI_DEFAULT_CLK_DIVIDER    = 4;
+/*
+ * MOSI：Master Out Slave In 主设备输出，从设备输入的数据线，用于主设备发送数据。
+ * MISO：Master In Slave Out 主设备输入，从设备输出的数据线，用于从设备发送数据。
+ */
+static const size_t SPI_DEFAULT_CLK_PIN        = 0;        // SPI时钟线（SCLK）默认使用的引脚编号为0
+static const size_t SPI_DEFAULT_SDI_PIN        = 1;        // SPI数据输入线（SDI/MOSI）默认使用引脚1
+static const size_t SPI_DEFAULT_SDO_PIN        = 2;        // SPI数据输出线（SDO/MISO）默认使用引脚2
+static const size_t SPI_DEFAULT_CS_PIN         = 3;        // SPI片选线（CS）默认使用引脚3
+static const size_t SPI_DEFAULT_PAYLOAD_LENGTH = 32;       // 默认的数据载荷长度（单位：位），是一次SPI传输的数据长度。
+static const std::string SPI_DEFAULT_PAYLOAD   = "0xfefe"; // 默认传输的数据内容（十六进制字符串）
+static const size_t SPI_DEFAULT_CLK_DIVIDER    = 4;        // 时钟分频系数，决定SPI时钟频率的分频值，具体频率 = 主时钟频率 / CLK_DIVIDER。
 
 namespace po = boost::program_options;
 
@@ -70,6 +74,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Creating the usrp device with: " << args << "..." << std::endl;
     auto usrp = uhd::usrp::multi_usrp::make(args);
 
+    // 列出可用的GPIO组
     if (vm.count("list-banks")) {
         std::cout << "Available GPIO banks: " << std::endl;
         auto banks = usrp->get_gpio_banks(0);
@@ -79,6 +84,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
 
     // Get the SPI getter interface from where we'll get the SPI interface itself
+    // 获取 SPI getter 接口，通过它来获取实际的 SPI 接口
+    // 非 RFNoC 设备，如 B210，没有此功能
     if (!usrp->get_radio_control().has_feature<uhd::features::spi_getter_iface>()) {
         std::cout << "Error: Could not find SPI_Getter_Iface. Please check if your FPGA "
                      "image is up to date.\n";
@@ -86,7 +93,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
     auto& spi_getter_iface =
         usrp->get_radio_control().get_feature<uhd::features::spi_getter_iface>();
-
     // Set all available pins to SPI for GPIO0 and GPIO1
     std::vector<std::string> sources(12, "DB0_SPI");
     usrp->set_gpio_src("GPIO0", sources);
