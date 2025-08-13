@@ -18,6 +18,7 @@ import numpy as np
 from . import connections, yaml_utils
 from .common import DEVICE_NAME, RFNOC_PROTO_VERSION
 from .utils import find_include_file, generate_edge_table, merge_dicts, resolve
+from .template import render_wire_width
 
 
 class ImageBuilderConfig:
@@ -1032,6 +1033,7 @@ class ImageBuilderConfig:
           case this function will expand them to absolute paths using include_paths.
         """
         dtsi_include_paths = include_paths + [os.path.join(self.device.top_dir, "dts")]
+        constraints_include_paths = include_paths + [self.device.top_dir]
         for module_name, module in self.get_module_list("all").items():
             for make_arg_type in ("make_defs", "constraints", "dts_includes"):
                 for arg in getattr(module.desc, make_arg_type, []):
@@ -1051,10 +1053,21 @@ class ImageBuilderConfig:
                             # as these are dynamically generated.
                             if not arg.endswith("version-info.dtsi"):
                                 self.log.error(
-                                    "Error evaluating %s: Could not find DTS file %s!",
+                                    "Error evaluating %s: Could not find DTS file %s! Searched in %s",
                                     module_name,
                                     arg,
+                                    ":".join(dtsi_include_paths)
                                 )
+                    elif make_arg_type == "constraints":
+                        try:
+                            arg = find_include_file(arg, constraints_include_paths)
+                        except FileNotFoundError:
+                            self.log.error(
+                                "Error evaluating %s: Could not find constraints file %s! Searched in %s",
+                                module_name,
+                                arg,
+                                ":".join(constraints_include_paths)
+                            )
                     getattr(self, make_arg_type).append(arg)
 
         def remove_dupes(lst):
@@ -1175,14 +1188,7 @@ class ImageBuilderConfig:
     def render_wire_width(self, wire, pad=8):
         """Render a wire's width ([7:0])."""
         width = wire.get("width", 1)
-        if isinstance(width, int):
-            start_idx = width - 1
-        else:
-            start_idx = f"{width}-1"
-        if start_idx == 0:
-            return "".rjust(pad)
-        range_str = f"{start_idx}:0".rjust(pad - 2)
-        return f"[{range_str}]"
+        return render_wire_width(width, pad)
 
     def get_secure_core_def(self):
         """Return the secure image core dictionary."""

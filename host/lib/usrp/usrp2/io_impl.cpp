@@ -16,9 +16,9 @@
 #include <uhd/utils/log.hpp>
 #include <uhd/utils/tasks.hpp>
 #include <uhd/utils/thread.hpp>
+#include <uhdlib/asio.hpp>
 #include <uhdlib/usrp/common/async_packet_handler.hpp>
 #include <uhdlib/usrp/common/validate_subdev_spec.hpp>
-#include <boost/asio.hpp>
 #include <boost/format.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/thread.hpp>
@@ -238,8 +238,7 @@ void usrp2_impl::io_impl::recv_pirate_loop(
  **********************************************************************/
 void usrp2_impl::io_init(void)
 {
-    // create new io impl
-    _io_impl = UHD_PIMPL_MAKE(io_impl, ());
+    _io_impl = std::make_shared<io_impl>();
 
     // init first so we dont have an access race
     for (const std::string& mb : _mbc.keys()) {

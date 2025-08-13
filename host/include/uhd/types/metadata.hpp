@@ -307,6 +307,8 @@ struct UHD_API async_metadata_t
      * 接收异步消息调用时事件类型。
      */
     enum event_code_t {
+        //! Status report without error code.
+        EVENT_CODE_OK = 0,
         //! A burst was successfully transmitted.
         //! 首发已成功发送确认
         EVENT_CODE_BURST_ACK = 0x1,
@@ -342,6 +344,20 @@ struct UHD_API async_metadata_t
      * \todo:我不理解
      */
     uint32_t user_payload[4];
+
+    /*!
+     * Convert a async_metadata_t into a pretty print string.
+     *
+     * \param compact Set to false for a more verbose output.
+     * \return a printable string representing the metadata.
+     */
+    std::string to_pp_string(bool compact = true) const;
+
+    /*!
+     * Similar to C's strerror() function, creates a std::string describing the event
+     * code. \return a printable string representing the event.
+     */
+    std::string strevent(void) const;
 };
 
 } // namespace uhd

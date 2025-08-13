@@ -36,8 +36,6 @@ parameters:
   values:
     - 'Filesystem'
     - 'Pipeline'
-- name: xilinxLocation
-  type: string
 - name: extra_rf_test_args
   type: string
   default: ''
@@ -55,8 +53,6 @@ jobs:
 - job: x4xx_hardware_test_${{ parameters.suiteName }}
   displayName: x4xx hardware test ${{ parameters.suiteName }}
   timeoutInMinutes: ${{ parameters.timeoutInMinutes }}
-  variables:
-    testOS: ''
   strategy:
     matrix: ${{ parameters.dutMatrix }}
 
@@ -71,15 +67,6 @@ jobs:
     clean: True
   - checkout: ettus-rts
     clean: True
-
-  - script: |
-      LSB_ID=$(lsb_release -i -s) # e.g. "Ubuntu"
-      LSB_RELEASE=$(lsb_release -r -s | tr -d .) # e.g. "2404"
-      # ${LSB_ID,,} is $LSB_ID in lower case
-      testOS=${LSB_ID,,}$LSB_RELEASE # e.g. "ubuntu2404"
-      echo '##vso[task.setvariable variable=testOS]'$testOS
-      echo testOS=$testOS
-    displayName: set testOS variable
 
   - script: |
       if [ "${{ parameters.uhdArtifactSource }}" = "current" ]; then
@@ -162,7 +149,6 @@ jobs:
     displayName: Create usrp_emb venv
 
   - script: |
-      source ${{ parameters.xilinxLocation }}/settings64.sh
       source $USRP_EMB_VENV/bin/activate
       usrp_emb_x4xx_flash_emmc
     displayName: Flash eMMC
@@ -345,13 +331,15 @@ jobs:
       warmUpAfterBoot: ${{ parameters.warmUpAfterBoot }}
       toolset: ${{ parameters.toolset }}
 
+  # TODO: remove version pinning once pytest is working again with higher versions
+  # TODO: use requirements.txt to install pytest dependencies
   - script: |
       dig -x $(sfp0ip) +short
       dig -x $USRP_EMB_TARGET_IP +short
       mkdir -p $(Common.TestResultsDirectory)/pytest/embedded
       cd $(Common.TestResultsDirectory)/pytest/embedded
       ssh-keygen -f ~/.ssh/known_hosts -R $USRP_EMB_TARGET_IP
-      ssh -o StrictHostKeyChecking=no -tt root@$USRP_EMB_TARGET_IP "pip3 install --upgrade pytest pytest-helpers-namespace pytest-tempdir pytest-salt"
+      ssh -o StrictHostKeyChecking=no -tt root@$USRP_EMB_TARGET_IP "pip3 install --upgrade 'pytest<8.4.0' pytest-helpers-namespace pytest-tempdir pytest-salt"
       ssh -o StrictHostKeyChecking=no -tt root@$USRP_EMB_TARGET_IP "rm -rf ~/usrp_pytest && mkdir -p ~/usrp_pytest"
       scp -o StrictHostKeyChecking=no -r $(Build.SourcesDirectory)/ettus-rts/config/remote/ root@$USRP_EMB_TARGET_IP:~/usrp_pytest
       ssh -o StrictHostKeyChecking=no -tt root@$USRP_EMB_TARGET_IP "cd ~/usrp_pytest/remote/python_tests/pytests && \
