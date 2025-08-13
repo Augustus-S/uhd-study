@@ -10,7 +10,6 @@
 ########################################################################
 set(example_sources
     benchmark_rate.cpp
-    network_relay.cpp
     rx_multi_samples.cpp
     rx_samples_to_file.cpp
     rx_samples_to_udp.cpp
@@ -33,7 +32,6 @@ set(example_sources
     rfnoc_rx_to_file.cpp
     rfnoc_radio_loopback.cpp
     rfnoc_replay_samples_from_file.cpp
-    #benchmark_streamer.cpp
 )
 
 if(ENABLE_OCTOCLOCK)

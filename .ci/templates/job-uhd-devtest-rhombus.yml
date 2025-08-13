@@ -1,8 +1,4 @@
 parameters:
-- name: testOS
-  type: string
-  values:
-    - ubuntu2004
 - name: uhdSrcDir
   type: string
 - name: uhdArtifactSource
@@ -21,7 +17,6 @@ jobs:
 - template: job-uhd-devtest.yml
   parameters:
     suiteName: 'rhombus'
-    testOS: '${{ parameters.testOS }}'
     knownHost: '|1|3et3xtaVaAtV98+6U+Tiu2wAX8I=|eEWBqjtPkxWfNR7hV/oQ+4QISlE= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBKKCqeRQXnWgl+KZu54dJGjw90R07wHCLXzvnfR9PRZ8+yBFwaNhWQCKZVwhN0G9r3bJ5RSsX+CQespwpRMptds='
     toolset: 'make'
     uhdSrcDir: '${{ parameters.uhdSrcDir }}'
@@ -72,8 +67,7 @@ jobs:
           devSerial: $(x310_TWINRX_devSerial)
           devBus: 'ip'
           devAddr: $(x310_TWINRX_devAddr)
-          # TODO: revert back to "HG,XG" once work item #3028634 is resolved
-          devFpga: 'HG'
+          devFpga: 'HG,XG'
           devtestPattern: 'x3x0'
           jtagSerial: $(x310_TWINRX_jtagSerial)
           jtagServer: 'nitest@sdr-rhombus'
@@ -111,7 +105,7 @@ jobs:
           devFpga: 'HG,XG'
           devtestPattern: 'n3x0'
           devSDImage: gnuradio-image-ni-sulfur-rev11-mender.sdimg.bz2
-          devLabgridConfig: .ci/templates/tests/rhombus-labgrid/device-configs/rhombus-n310-0.yml
+          devLabgridConfig: config/labgrid/rhombus-labgrid/device-configs/rhombus-n310-0.yml
         rhombus-n321-0:
           devType: 'n3xx'
           devModel: 'n320'
@@ -124,9 +118,10 @@ jobs:
           devFpga: 'HG,XG,XQ'
           devtestPattern: 'n3x0'
           devSDImage: gnuradio-image-ni-sulfur-rev11-mender.sdimg.bz2
-          devLabgridConfig: .ci/templates/tests/rhombus-labgrid/device-configs/rhombus-n321-0.yml
+          devLabgridConfig: config/labgrid/rhombus-labgrid/device-configs/rhombus-n321-0.yml
 
-      ${{ if contains(parameters.testDevices, 'e320') }}:
+      # disabling e320 for now due to broken device
+      ${{ if contains(parameters.testDevices, 'e320_disabled') }}:
         rhombus-e320-0:
           devType: 'e3xx'
           devModel: 'e320'
@@ -140,4 +135,4 @@ jobs:
           devtestPattern: 'e320'
           devInitramfsImage: fitImage-manufacturing
           devSDImage: gnuradio-image-ni-neon-rev2-mender.sdimg.bz2
-          devLabgridConfig: .ci/templates/tests/rhombus-labgrid/device-configs/rhombus-e320-0.yml
+          devLabgridConfig: config/labgrid/rhombus-labgrid/device-configs/rhombus-e320-0.yml

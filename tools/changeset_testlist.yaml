@@ -75,6 +75,12 @@
     - uhd.build.all
     - hw.rf.x310.twinrx
     - hw.rf.x300.twinrx
+- re: host/lib/usrp/dboard/obx|host/lib/include/uhdlib/usrp/dboard/obx
+  add:
+    - uhd.build.all
+    - hw.rf.x3xx
+    - devtest.x3xx
+    - hw.streaming.x3xx
 - re: host/lib/usrp/dboard/.*CMakeLists.txt
   add:
     - uhd.build.all
@@ -143,6 +149,7 @@
     - hw.streaming.all
     - hw.rf.all
     - devtest.all
+  stop: False
 
 ###############################################################################
 # MPM CHANGES
@@ -222,6 +229,7 @@
 - re: fpga/usrp3/
   add:
     - fpga.usrp3.testbenches
+    - fpga.usrp3.regmaps
   stop: False
 
 # library changes
@@ -229,6 +237,8 @@
   add:
     - fpga.usrp3.all
     - uhd.rfnoc_modtool.all
+    - fpga.usrp3.cpld.x4xx
+    - fpga.usrp3.cpld.x3xx
 
 # image builder changes
 - re: host/utils/rfnoc_image_builder.py
@@ -287,6 +297,20 @@
   add:
     - fpga.usrp3.n3xx
 
+# CPLD related changes
+- re: fpga/usrp3/top/x400/cpld
+  add:
+    - fpga.usrp3.cpld.x4xx
+- re: fpga/usrp3/top/x400/dboards
+  add:
+    - fpga.usrp3.cpld.x4xx
+- re: fpga/usrp3/top/x400/constraints/timing/shared_constants.sdc
+  add:
+    - fpga.usrp3.cpld.x4xx
+- re: fpga/usrp3/top/x300/dboards
+  add:
+    - fpga.usrp3.cpld.x3xx
+
 ###############################################################################
 # CI CHANGES
 ###############################################################################
@@ -329,9 +353,27 @@
     - uhd.rfnoc_modtool.all
 
 
-- re: fpga/.ci/templates*
+- re: .ci/fpga/templates
   add:
     - fpga.usrp3.all
+    - fpga.usrp3.cpld.x4xx
+    - fpga.usrp3.cpld.x3xx
+    - fpga.usrp3.testbenches
+    - fpga.usrp3.regmaps
+- re: .ci/fpga/scripts
+  add:
+    - fpga.usrp3.all
+    - fpga.usrp3.cpld.x4xx
+    - fpga.usrp3.cpld.x3xx
+    - fpga.usrp3.testbenches
+    - fpga.usrp3.regmaps
+- re: .ci/hwtools
+  add:
+    - fpga.usrp3.all
+    - fpga.usrp3.cpld.x4xx
+    - fpga.usrp3.cpld.x3xx
+    - fpga.usrp3.testbenches
+    - fpga.usrp3.regmaps
 # Device-specific pipeline changes.
 - re: .ci/fpga/devices/job-build-x400.yml
   add:
@@ -352,15 +394,16 @@
 ###############################################################################
 # LABEL-BASED RULES
 ###############################################################################
-- label: ci:skip_hw_tests
-  remove_re:
-    - "^hw"
-    - "^devtest"
-
 - label: ci:skip_devtests
   remove_re:
     - "^devtest"
-
+# Need to escape the dot for the regex by using a backslash: \.
+# Have to use double backslashes in order to make the yaml parser happy
 - label: ci:skip_rf_tests
   remove_re:
-    - "^hw.rf"
+    - "^hw\\.rf"
+
+- label: ci:skip_streaming_tests
+  remove_re:
+    - "^hw\\.streaming"
+

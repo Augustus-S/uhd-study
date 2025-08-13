@@ -46,10 +46,10 @@ variables:
       "{'Fedora-40-builder':{'buildOSName':'fedora40','dockerImageName':'uhd-builder-fedora40'},
       'Fedora-41-builder':{'buildOSName':'fedora41','dockerImageName':'uhd-builder-fedora41'},
       'Fedora-42-builder':{'buildOSName':'fedora42','dockerImageName':'uhd-builder-fedora42'},
-      'Ubuntu-1804-builder':{'buildOSName':'ubuntu1804','dockerImageName':'uhd-builder-ubuntu1804'},
       'Ubuntu-2004-builder':{'buildOSName':'ubuntu2004','dockerImageName':'uhd-builder-ubuntu2004'},
       'Ubuntu-2204-builder':{'buildOSName':'ubuntu2204','dockerImageName':'uhd-builder-ubuntu2204'},
-      'Ubuntu-2404-builder':{'buildOSName':'ubuntu2404','dockerImageName':'uhd-builder-ubuntu2404'}}"
+      'Ubuntu-2404-builder':{'buildOSName':'ubuntu2404','dockerImageName':'uhd-builder-ubuntu2404'},
+      'Ubuntu-2504-builder':{'buildOSName':'ubuntu2504','dockerImageName':'uhd-builder-ubuntu2504'}}"
 - ${{ else }}:
   - name: linuxDockerImages
     value:
@@ -67,10 +67,10 @@ variables:
 - name: ubuntuDebDockerImages
   # Match with Ubuntu images in linuxDockerImages
   value:
-    "{'Ubuntu-1804-builder':{'buildOSName':'ubuntu1804','dockerImageName':'uhd-builder-ubuntu1804','ubuntuReleaseName':'bionic'},
-    'Ubuntu-2004-builder':{'buildOSName':'ubuntu2004','dockerImageName':'uhd-builder-ubuntu2004','ubuntuReleaseName':'focal'},
+    "{'Ubuntu-2004-builder':{'buildOSName':'ubuntu2004','dockerImageName':'uhd-builder-ubuntu2004','ubuntuReleaseName':'focal'},
     'Ubuntu-2204-builder':{'buildOSName':'ubuntu2204','dockerImageName':'uhd-builder-ubuntu2204','ubuntuReleaseName':'jammy'},
-    'Ubuntu-2404-builder':{'buildOSName':'ubuntu2404','dockerImageName':'uhd-builder-ubuntu2404','ubuntuReleaseName':'noble'}}"
+    'Ubuntu-2404-builder':{'buildOSName':'ubuntu2404','dockerImageName':'uhd-builder-ubuntu2404','ubuntuReleaseName':'noble'},
+    'Ubuntu-2504-builder':{'buildOSName':'ubuntu2504','dockerImageName':'uhd-builder-ubuntu2504','ubuntuReleaseName':'plucky'}}"
 
 - name: macOSBuilders
   value:
@@ -225,6 +225,10 @@ jobs:
     demands:
       - agent.os -equals Windows_NT
       - docker
+      - large_disk -equals 1
+      - high_disk_io -equals 1
+      - high_cpu_per_thread -equals 1
+      - cpu_host_type -equals Intel_x86-64-v4
   condition: and(succeeded(), ${{ parameters.build_windows }})
   strategy:
     matrix: $[ variables.winDockerImages ]
@@ -268,6 +272,10 @@ jobs:
     demands:
       - agent.os -equals Windows_NT
       - docker
+      - large_disk -equals 1
+      - high_disk_io -equals 1
+      - high_cpu_per_thread -equals 1
+      - cpu_host_type -equals Intel_x86-64-v4
   strategy:
     matrix: $[ variables.winDockerImages ]
   container:
