@@ -48,10 +48,36 @@ gps_ctrl::~gps_ctrl(void)
 class gps_ctrl_impl : public gps_ctrl
 {
 private:
+    // tuple 是元组类型，作用是把多个不同类型的值组合成一个对象。
+    // 如果要绕过 get_sentence 函数及其 used 机制进行 gps 串口数据监听，可以考虑直接遍历 sentences
     std::map<std::string, std::tuple<std::string, boost::system_time, bool>> sentences;
+
     std::mutex cache_mutex;
     boost::system_time _last_cache_update;
 
+    /*!
+     * \brief 从缓存中获取指定类型的 GPS 语句
+     *
+     * 该函数会尝试从 GPS 缓存中获取类型为 \p which 的语句。
+     * 如果缓存中存在且语句的时间戳未超过 \p max_age_ms 毫秒，则立即返回。
+     * 否则，函数会等待，直到：
+     *   - 收到所需类型的新语句，或
+     *   - 等待时间超过 \p timeout 毫秒。
+     *
+     * 当 \p wait_for_next 为 true 时，函数只会返回在调用之后新接收到的语句，
+     * 已经在缓存中存在的语句会被忽略（并标记为已使用）。
+     *
+     * \param which         要获取的语句类型（例如："GPGGA"）。
+     * \param max_age_ms    语句的最大允许时长（毫秒）。
+     * \param timeout       最大等待时间（毫秒）。
+     * \param wait_for_next 若为 true，则必须等待新语句到达后才返回。
+     *
+     * \return 返回指定类型的 GPS 语句字符串。
+     *
+     * \throws uhd::value_error 如果在超时时间内未找到有效的语句。
+     *
+     * \note 该函数在需要时会更新 GPS 缓存，并在访问缓存时使用互斥锁保证线程安全。
+     */
     std::string get_sentence(const std::string which,
         const int max_age_ms,
         const int timeout,
@@ -106,6 +132,7 @@ private:
         return sentence;
     }
 
+    // NMEA 是 GPS 模块输出的标准串口协议，该函数用于检查串口输出的消息是否符合标准。
     static bool is_nmea_checksum_ok(std::string nmea)
     {
         if (nmea.length() < 5 || nmea[0] != '$' || nmea[nmea.length() - 3] != '*')
@@ -116,10 +143,14 @@ private:
         uint32_t calculated_crc = 0;
 
         // get crc from string
+        // todo:后续可以学习一下这个crc校验机制
         ss << std::hex << nmea.substr(nmea.length() - 2, 2);
         ss >> string_crc;
 
         // calculate crc
+        // 计算 crc
+        // 从 $ 之后的第一个字符开始（即 nmea[1]），一直到 * 之前的最后一个字符。
+        // 对每个字符逐个做 XOR（异或），得到最终的 calculated_crc。
         for (size_t i = 1; i < nmea.length() - 3; i++)
             calculated_crc ^= nmea[i];
 
@@ -140,6 +171,20 @@ private:
     //                    message in the cache. This is useful when we know that
     //                    a message is arriving that does not conform to the
     //                    message patterns for a SERVO or GP* message.
+    /*!
+     * 读取所有未处理的消息并放入缓存
+     *
+     * 除了构造函数以外，这是唯一一个从GPS实际读取消息的函数。
+     * 它会读取所有未处理的消息并连同时间戳一起放入缓存(sentences cache)，
+     * 这样我们就可以知道这些消息的时间了。
+     *
+     * 如果要从缓存中读取消息，请使用 get_sentence() 函数。
+     *
+     * \param msg_key_hint 如果该参数非空，将会用它作为缓存中的消息键。
+     *                     当我们知道有某条消息即将到达，
+     *                     但是它不符合 SERVO or GP* 消息模式时，
+     *                     这个参数就非常有用。
+     */
     void update_cache(const std::string& msg_key_hint = "")
     {
         if (not gps_detected()) {
@@ -152,8 +197,11 @@ private:
 
         // Get all GPSDO messages available
         // Creating a map here because we only want the latest of each message type
+        // 获取所有可用的 GPSDO 消息
+        // 在这里创建一个 map，因为我们只需要每种消息类型的最新一条
         for (std::string msg = _recv(0); not msg.empty(); msg = _recv(0)) {
             // Strip any end of line characters
+            // 去掉所有行尾字符
             erase_all(msg, "\r");
             erase_all(msg, "\n");
 
@@ -191,6 +239,7 @@ private:
         boost::system_time time = boost::get_system_time();
 
         // Update sentences with newly read data
+        // 使用新读到的数据更新 sentences
         for (auto& msg : msgs) {
             if (!msg.second.empty()) {
                 std::lock_guard<std::mutex> lock(cache_mutex);
@@ -208,13 +257,21 @@ public:
         bool i_heard_some_nmea = false, i_heard_something_weird = false;
 
         // first we look for an internal GPSDO
+
+        // 读取接收缓冲区中当前的所有数据，然后丢弃（清空当前的串口缓存区）
         _flush(); // get whatever junk is in the rx buffer right now, and throw it away
 
+        // 请求当前GPSDO的身份
         _send("*IDN?\r\n"); // request identity from the GPSDO
 
         // then we loop until we either timeout, or until we get a response that indicates
         // we're a JL device maximum response time was measured at ~320ms, so we set the
         // timeout at 650ms
+        // 然后我们进入循环，直到发生超时，或者直到收到一个表明我们是 JL 设备的响应为止。
+        // 测得的最大响应时间大约为 320ms，所以我们将超时时间设定为 650ms。
+        //! 注意：JL device 很可能是 UHD 官方板载的GPS设备，
+        //       如果使用外部GPS，发生问题时或许可以考虑修改延迟时间，
+        //       但是这个超时时间已经相当大了。
         const boost::system_time comm_timeout =
             boost::get_system_time() + milliseconds(650);
         while (boost::get_system_time() < comm_timeout) {
@@ -279,6 +336,7 @@ public:
         return {"gps_gpgga", "gps_gprmc", "gps_time", "gps_locked", "gps_servo"};
     }
 
+    // 使用了上文的 get_sentence() 函数来接收GPS消息。
     uhd::sensor_value_t get_sensor(std::string key) override
     {
         if (key == "gps_gpgga" or key == "gps_gprmc") {
