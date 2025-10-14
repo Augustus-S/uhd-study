@@ -12,6 +12,7 @@
 #include <uhd/utils/log.hpp>
 #include <uhd/utils/static.hpp>
 #include <uhdlib/utils/prefs.hpp>
+#include <uhdlib/utils/serial_number.hpp>
 #include <boost/functional/hash.hpp>
 #include <future>
 #include <memory>
@@ -92,25 +93,66 @@ device::~device(void)
 /***********************************************************************
  * Discover
  **********************************************************************/
-device_addrs_t device::find(const device_addr_t& hint, device_filter_t filter)
-{
-    std::lock_guard<std::mutex> lock(_device_mutex);
 
-    device_addrs_t device_addrs;
-    std::vector<std::future<device_addrs_t>> find_tasks;
+// Internal function that discovers devices and returns them with their make functions
+static std::vector<std::tuple<device_addr_t, device::make_t>>
+discover_devices_with_makers(const device_addr_t& hint, device::device_filter_t filter)
+{
+    std::vector<std::tuple<device_addr_t, device::make_t>> device_maker_pairs;
+
+    // Launch async find tasks with their corresponding make functions
+    std::vector<std::pair<std::future<device_addrs_t>, device::make_t>> tasks;
     for (const auto& fcn : get_dev_fcn_regs()) {
-        if (filter == ANY or std::get<2>(fcn) == filter) {
-            find_tasks.emplace_back(std::async(
-                std::launch::async, [fcn, hint]() { return std::get<0>(fcn)(hint); }));
+        if (filter == device::ANY or std::get<2>(fcn) == filter) {
+            tasks.emplace_back(std::async(std::launch::async,
+                                   [fcn, hint]() { return std::get<0>(fcn)(hint); }),
+                std::get<1>(fcn));
         }
     }
-    for (auto& find_task : find_tasks) {
+
+    // Collect results from async tasks
+    for (auto& [task, maker] : tasks) {
         try {
-            device_addrs_t discovered_addrs = find_task.get();
-            device_addrs.insert(
-                device_addrs.begin(), discovered_addrs.begin(), discovered_addrs.end());
+            device_addrs_t discovered_addrs = task.get();
+            for (const auto& addr : discovered_addrs) {
+                device_maker_pairs.emplace_back(addr, maker);
+            }
         } catch (const std::exception& e) {
             UHD_LOGGER_ERROR("UHD") << "Device discovery error: " << e.what();
+        }
+    }
+
+    return device_maker_pairs;
+}
+
+// Internal function that returns filtered device-maker pairs
+static std::vector<std::tuple<device_addr_t, device::make_t>>
+find_filtered_devices_with_makers(
+    const device_addr_t& hint, device::device_filter_t filter)
+{
+    // Get devices with their makers
+    auto device_maker_pairs = discover_devices_with_makers(hint, filter);
+
+    std::vector<std::tuple<device_addr_t, device::make_t>> filtered_pairs;
+
+    // Filter the discovered devices
+    for (const auto& pair : device_maker_pairs) {
+        const device_addr_t& discovered_addr = std::get<0>(pair);
+
+        // Filter with the optional keys name/serial/type/product
+        if ((not hint.has_key("name") or hint["name"] == discovered_addr["name"])
+            and (not hint.has_key("serial")
+                 or utils::serial_numbers_match(
+                     hint["serial"], discovered_addr["serial"]))
+            and (not hint.has_key("type") or hint["type"] == discovered_addr["type"])
+            and (not hint.has_key("product") or not discovered_addr.has_key("product")
+                 or hint["product"] == discovered_addr["product"])) {
+            UHD_LOG_DEBUG("Device FIND",
+                "Found device that matches hints: " << discovered_addr.to_string());
+            filtered_pairs.push_back(pair);
+        } else {
+            UHD_LOG_DEBUG("Device FIND",
+                "Found device, but does not match hint: " << discovered_addr.to_string());
         }
     }
 
@@ -119,15 +161,33 @@ device_addrs_t device::find(const device_addr_t& hint, device_filter_t filter)
     // find 操作可能返回重复条目（当设备多次收到广播时）
     // 需要从结果中移除这些重复项
     std::set<size_t> device_hashes;
-    device_addrs.erase(std::remove_if(device_addrs.begin(),
-                           device_addrs.end(),
-                           [&device_hashes](const device_addr_t& other) {
-                               size_t hash       = hash_device_addr(other);
-                               const bool result = device_hashes.count(hash);
-                               device_hashes.insert(hash);
-                               return result;
-                           }),
-        device_addrs.end());
+    filtered_pairs.erase(
+        std::remove_if(filtered_pairs.begin(),
+            filtered_pairs.end(),
+            [&device_hashes](const std::tuple<device_addr_t, device::make_t>& pair) {
+                size_t hash       = hash_device_addr(std::get<0>(pair));
+                const bool result = device_hashes.count(hash);
+                device_hashes.insert(hash);
+                return result;
+            }),
+        filtered_pairs.end());
+
+    return filtered_pairs;
+}
+
+device_addrs_t device::find(const device_addr_t& hint, device_filter_t filter)
+{
+    std::lock_guard<std::mutex> lock(_device_mutex);
+
+    // Get filtered device-maker pairs
+    auto filtered_pairs = find_filtered_devices_with_makers(hint, filter);
+
+    // Extract just the device addresses
+    device_addrs_t device_addrs;
+    std::transform(filtered_pairs.begin(),
+        filtered_pairs.end(),
+        std::back_inserter(device_addrs),
+        [](const auto& pair) { return std::get<0>(pair); });
 
     return device_addrs;
 }
@@ -140,32 +200,15 @@ device::sptr device::make(const device_addr_t& hint, device_filter_t filter, siz
     std::lock_guard<std::mutex> lock(_device_mutex);    // 离开作用域自动释放锁
     // 当前作用域下所有的变量、函数均被加锁，其他函数调用需要等待。
 
+    // Use the internal function that returns filtered device-maker pairs
+    auto filtered_pairs = find_filtered_devices_with_makers(hint, filter);
+
     typedef std::tuple<device_addr_t, make_t> dev_addr_make_t;
     std::vector<dev_addr_make_t> dev_addr_makers;
 
-    // 发现所有符合条件的设备并收集它们的地址信息和创建函数
-    /*
-     * 设备发现函数：std::get<0>(fcn) - 接受hint参数，返回设备地址列表
-     * 设备创建函数：std::get<1>(fcn) - 实际创建设备的工厂函数
-     * 设备过滤器类型：std::get<2>(fcn) - 标识设备类型的枚举值
-     */
-    for (const dev_fcn_reg_t& fcn : get_dev_fcn_regs()) {   // for条件为遍历所有设备
-        try {
-            /*
-             * filter == ANY：当调用者不关心设备类型时（filter参数为ANY），处理所有设备
-             * std::get<2>(fcn) == filter：当调用者指定特定设备类型时，只处理匹配类型的设备
-             */
-            if (filter == ANY or std::get<2>(fcn) == filter) {                 // 见上文
-                for (device_addr_t dev_addr : std::get<0>(fcn)(hint)) {        // 见上文
-                    // append the discovered address and its factory function
-                    // 将发现的设备地址及其对应的工厂函数追加到列表中
-                    dev_addr_makers.push_back(
-                        dev_addr_make_t(dev_addr, std::get<1>(fcn)));   // 见上文
-                }
-            }
-        } catch (const std::exception& e) {
-            UHD_LOGGER_ERROR("UHD") << "Device discovery error: " << e.what();
-        }
+    // Convert to the expected format (no additional filtering needed)
+    for (const auto& pair : filtered_pairs) {
+        dev_addr_makers.push_back(dev_addr_make_t(std::get<0>(pair), std::get<1>(pair)));
     }
 
     // check that we found any devices

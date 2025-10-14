@@ -48,7 +48,7 @@ if os.name == "nt":
                     "the UHD binary installation and the UHD Python module to the exact same version "
                     "by upgrading the older component."
                 )
-    else:
+    if not uhd_dll_dir:
         print(
             f"WARNING: Failed to add {uhd_dll_name} path to DLL search, module may not import properly, "
             "version check skipped.\nPlease ensure UHD_PKG_DIR (binary installation) is set correctly. "
@@ -60,6 +60,7 @@ try:
     from .libpyuhd import find, get_abi_string, get_component, get_version_string
     from .libpyuhd.paths import *  # noqa: F403
     from .property_tree import PropertyTree
+    from .utils import dram
 
     __version__ = get_version_string()
 except ImportError as e:
