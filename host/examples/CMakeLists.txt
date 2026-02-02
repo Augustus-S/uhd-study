@@ -23,6 +23,7 @@ set(example_sources
     tx_timed_samples.cpp
     tx_waveforms.cpp
     txrx_loopback_to_file.cpp
+    txrx_complex_gain.cpp
     usrp_list_sensors.cpp
     latency_test.cpp
     gpio.cpp
@@ -43,7 +44,7 @@ foreach(example_source ${example_sources})
     get_filename_component(example_name ${example_source} NAME_WE)
     add_executable(${example_name} ${example_source})
     target_link_libraries(${example_name}
-        PUBLIC uhd Boost::program_options)
+        PUBLIC uhd Boost::program_options Boost::filesystem)
     UHD_INSTALL(TARGETS ${example_name} RUNTIME DESTINATION ${PKG_LIB_DIR}/examples COMPONENT examples)
 endforeach(example_source)
 
